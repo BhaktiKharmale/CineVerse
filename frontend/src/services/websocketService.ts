@@ -60,14 +60,27 @@ class WebSocketService {
       return;
     }
 
-    if (this.isConnecting || this.socket?.readyState === WebSocket.OPEN) {
-      console.log('[WebSocket] Already connected or connecting, skipping...');
+    // If already connected to the same showtime, don't reconnect
+    if (this.socket?.readyState === WebSocket.OPEN && this.showtimeId === validatedShowtimeId) {
+      console.log('[WebSocket] Already connected to this showtime, skipping...');
+      return;
+    }
+
+    // If connecting or connected to different showtime, disconnect first
+    if (this.isConnecting || this.socket?.readyState === WebSocket.OPEN || this.socket?.readyState === WebSocket.CONNECTING) {
+      console.log('[WebSocket] Closing existing connection before connecting to new showtime...');
+      this.disconnect();
+      // Wait a bit for disconnect to complete
+      setTimeout(() => {
+        this.connect(showtimeId);
+      }, 100);
       return;
     }
 
     this.showtimeId = validatedShowtimeId;
     this.isManualClose = false;
     this.isConnecting = true;
+    this.reconnectAttempts = 0; // Reset reconnect attempts for new connection
 
     try {
       const wsUrl = this.buildWebSocketUrl(validatedShowtimeId);
@@ -84,7 +97,7 @@ class WebSocketService {
       }, 8000); // Reduced timeout
 
       this.socket.onopen = () => {
-        console.log('[WebSocket] Connected successfully to showtime:', this.showtimeId);
+        console.log('[WebSocket] WebSocket opened, waiting for server confirmation...');
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         
@@ -94,35 +107,48 @@ class WebSocketService {
           this.connectionTimeout = null;
         }
         
-        this.emit('connected');
+        // Don't emit 'connected' here - wait for server's 'connected' message
+        // The server will send a 'connected' message after accepting and validating
         
-        // Start ping interval to keep connection alive
-        this.pingInterval = setInterval(() => {
-          if (this.socket?.readyState === WebSocket.OPEN) {
-            this.send({ type: 'ping', timestamp: Date.now() });
+        // Start ping interval to keep connection alive (but wait a bit first)
+        setTimeout(() => {
+          if (this.socket?.readyState === WebSocket.OPEN && this.pingInterval === null) {
+            this.pingInterval = setInterval(() => {
+              if (this.socket?.readyState === WebSocket.OPEN) {
+                console.log('[WebSocket] Sending ping to server');
+                this.send({ type: 'ping', timestamp: Date.now() });
+              }
+            }, 25000); // Ping every 25 seconds
           }
-        }, 25000); // Reduced ping interval
+        }, 2000); // Wait 2 seconds before starting ping
       };
 
       this.socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           
-          // Handle different message types
+          // Handle ping from server - respond with pong
+          if (data.type === 'ping') {
+            console.log('[WebSocket] Received ping from server, sending pong');
+            this.send({ type: 'pong', timestamp: data.timestamp || Date.now() });
+            return;
+          }
+          
+          // Handle pong from server (response to our ping)
           if (data.type === 'pong') {
-            return; // Ignore pong responses
+            console.log('[WebSocket] Received pong from server');
+            return; // Acknowledge but don't emit
           }
           
           if (data.type === 'connected') {
-            console.log('[WebSocket] Server confirmed connection:', data.message);
+            console.log('[WebSocket] ✅ Server confirmed connection:', data.message);
+            console.log('[WebSocket] Connected successfully to showtime:', this.showtimeId);
             this.emit('connected');
             return;
           }
           
-          // Only log non-ping/pong messages to reduce noise
-          if (data.type !== 'ping' && data.type !== 'pong') {
-            console.log('[WebSocket] Message received:', data.type);
-          }
+          // Log other message types
+          console.log('[WebSocket] Message received:', data.type);
           
           this.emit(data.type, data);
         } catch (error) {
@@ -132,11 +158,17 @@ class WebSocketService {
       };
 
       this.socket.onclose = (event) => {
-        console.log(`[WebSocket] Disconnected from showtime ${this.showtimeId}:`, {
+        // Store showtimeId and manual close flag before they might be cleared
+        const showtimeIdForLog = this.showtimeId;
+        const wasManualClose = this.isManualClose;
+        
+        console.log(`[WebSocket] Disconnected from showtime ${showtimeIdForLog}:`, {
           code: event.code,
           reason: event.reason,
-          wasClean: event.wasClean
+          wasClean: event.wasClean,
+          wasManualClose: wasManualClose
         });
+        
         this.isConnecting = false;
         this.emit('disconnected', { code: event.code, reason: event.reason });
         
@@ -152,12 +184,33 @@ class WebSocketService {
           this.pingInterval = null;
         }
         
+        // Code 1006 = Abnormal Closure (no close frame received)
+        // This usually means connection failed before it was established
+        // Don't treat this as manual close - it's a connection failure
+        if (event.code === 1006 && !event.wasClean) {
+          console.warn('[WebSocket] Connection closed abnormally (1006) - connection may have failed before establishment');
+          console.warn('[WebSocket] This usually indicates: network error, CORS issue, or server rejection');
+          
+          // Only reconnect if it wasn't a manual close and we have a valid showtimeId
+          if (!wasManualClose && showtimeIdForLog) {
+            console.log('[WebSocket] Attempting to reconnect after abnormal closure...');
+            // Reset manual close flag for abnormal closures - they're not intentional
+            this.isManualClose = false;
+            this.handleReconnection();
+          } else if (wasManualClose) {
+            console.log('[WebSocket] Manual close detected - not reconnecting after 1006');
+          } else if (!showtimeIdForLog) {
+            console.error('[WebSocket] Cannot reconnect - showtimeId is null');
+          }
+          return;
+        }
+        
         // FIXED: Allow reconnection even after 403 errors (token might be expired but connection should work)
         // Only don't reconnect on manual close or policy violations
-        if (!this.isManualClose && event.code !== 1003) {
+        if (!wasManualClose && event.code !== 1003) {
           // Reconnect for all other cases, including 403 (expired token)
           this.handleReconnection();
-        } else if (this.isManualClose) {
+        } else if (wasManualClose) {
           console.log('[WebSocket] Manual close - not reconnecting');
         } else {
           console.log('[WebSocket] Not reconnecting due to policy violation:', event.code);
@@ -166,9 +219,24 @@ class WebSocketService {
       };
 
       this.socket.onerror = (error) => {
-        console.error('[WebSocket] Connection error for showtime', this.showtimeId, ':', error);
+        // Store showtimeId before it might be cleared
+        const showtimeIdForLog = this.showtimeId;
+        console.error('[WebSocket] Connection error for showtime', showtimeIdForLog, ':', error);
         this.isConnecting = false;
-        this.emit('error', 'WebSocket connection failed');
+        
+        // Log more details about the error
+        if (this.socket) {
+          console.error('[WebSocket] Socket state:', {
+            readyState: this.socket.readyState,
+            url: this.socket.url,
+            protocol: this.socket.protocol
+          });
+        }
+        
+        // Only emit error if socket is actually closed or in error state
+        if (this.socket?.readyState === WebSocket.CLOSED || this.socket?.readyState === WebSocket.CLOSING) {
+          this.emit('error', 'WebSocket connection failed');
+        }
         
         // Clear connection timeout
         if (this.connectionTimeout) {
@@ -251,7 +319,10 @@ class WebSocketService {
   }
 
   disconnect() {
-    console.log('[WebSocket] Manual disconnect initiated for showtime:', this.showtimeId);
+    const showtimeIdForLog = this.showtimeId;
+    console.log('[WebSocket] Manual disconnect initiated for showtime:', showtimeIdForLog);
+    
+    // Set manual close flag first to prevent reconnection
     this.isManualClose = true;
     
     // Clear connection timeout
@@ -266,15 +337,49 @@ class WebSocketService {
       this.pingInterval = null;
     }
     
+    // Cancel any pending reconnection attempts
+    // (This is handled by isManualClose flag, but we can be explicit)
+    
+    const hadSocket = !!this.socket;
     if (this.socket) {
-      this.socket.close(1000, 'Manual disconnect');
-      this.socket = null;
+      try {
+        // Only close if socket is in a valid state
+        const state = this.socket.readyState;
+        if (state === WebSocket.OPEN) {
+          // Socket is open - close gracefully
+          this.socket.close(1000, 'Manual disconnect');
+        } else if (state === WebSocket.CONNECTING) {
+          // Socket is still connecting - abort the connection
+          // Close with code 1000 to indicate normal closure
+          this.socket.close(1000, 'Manual disconnect');
+        } else {
+          // Socket is already closed or closing - just clean up
+          console.log('[WebSocket] Socket already closed/closing, cleaning up');
+        }
+      } catch (error) {
+        console.warn('[WebSocket] Error closing socket:', error);
+      } finally {
+        // Always nullify the socket reference
+        this.socket = null;
+      }
     }
     
-    this.showtimeId = null;
+    // Reset state (but keep showtimeId until socket is actually closed)
+    // This allows error handlers to still log the showtimeId
     this.reconnectAttempts = 0;
     this.isConnecting = false;
-    this.listeners.clear();
+    
+    // Clear showtimeId after a short delay to allow error handlers to log it
+    // Delay clearing showtimeId to allow onclose handler to use it
+    if (hadSocket) {
+      // Delay clearing showtimeId to allow onclose handler to use it
+      setTimeout(() => {
+        this.showtimeId = null;
+      }, 200);
+    } else {
+      // No socket was created, clear immediately
+      this.showtimeId = null;
+    }
   }
 
   isConnected(): boolean {

@@ -1049,11 +1049,34 @@ async def websocket_endpoint(websocket: WebSocket, showtime_id: int):
     If token is provided and invalid, connection will be rejected with 403.
     If no token is provided, connection is allowed (public access for seat updates).
     """
-    # Validate showtime_id
+    showtime_id_int = None
+    db = None
+    
+    # Log connection attempt with headers for debugging
+    logger.info(f"🔌 WebSocket connection attempt for showtime {showtime_id}")
+    logger.debug(f"WebSocket headers: {dict(websocket.headers)}")
+    logger.debug(f"WebSocket query params: {dict(websocket.query_params)}")
+    
+    # IMPORTANT: Accept the connection FIRST before any validation
+    # You cannot close a WebSocket before accepting it
+    try:
+        await websocket.accept()
+        logger.info(f"✅ WebSocket connection accepted for showtime {showtime_id}")
+    except Exception as e:
+        logger.error(f"❌ Failed to accept WebSocket connection for showtime {showtime_id}: {e}", exc_info=True)
+        # Connection not accepted, nothing to close
+        return
+    
+    # Validate showtime_id format (simple validation, no DB needed)
     try:
         showtime_id_int = int(showtime_id)
+        logger.debug(f"Validated showtime_id: {showtime_id_int}")
     except ValueError:
-        await websocket.close(code=1008, reason="Invalid showtime ID")
+        logger.warning(f"Invalid showtime_id format: {showtime_id}")
+        try:
+            await websocket.close(code=1008, reason="Invalid showtime ID")
+        except Exception as close_err:
+            logger.error(f"Failed to close WebSocket after validation error: {close_err}")
         return
     
     # Optional: Validate token if provided (for future authentication)
@@ -1071,33 +1094,67 @@ async def websocket_endpoint(websocket: WebSocket, showtime_id: int):
     else:
         logger.debug(f"WebSocket connection without authentication (public access)")
     
-    # Check if showtime exists
-    db_gen = get_db()
-    db = next(db_gen)
+    # Check if showtime exists (now safe to close if needed since connection is accepted)
     try:
-        showtime = db.query(models.Showtime).filter(models.Showtime.id == showtime_id_int).first()
-        if not showtime:
-            await websocket.close(code=1008, reason="Showtime not found")
+        db_gen = get_db()
+        db = next(db_gen)
+        try:
+            showtime = db.query(models.Showtime).filter(models.Showtime.id == showtime_id_int).first()
+            if not showtime:
+                logger.warning(f"Showtime {showtime_id_int} not found in database")
+                try:
+                    # Check if connection is still open before closing
+                    await websocket.close(code=1008, reason="Showtime not found")
+                except (WebSocketDisconnect, RuntimeError) as close_err:
+                    # Connection already closed, that's fine
+                    logger.debug(f"WebSocket already closed when trying to close after showtime not found: {close_err}")
+                except Exception as close_err:
+                    logger.error(f"Failed to close WebSocket after showtime not found: {close_err}")
+                return
+            logger.debug(f"Showtime {showtime_id_int} validated successfully")
+        except Exception as e:
+            logger.error(f"Error validating showtime {showtime_id_int}: {e}", exc_info=True)
+            try:
+                await websocket.close(code=1011, reason="Internal server error")
+            except (WebSocketDisconnect, RuntimeError):
+                # Connection already closed, that's fine
+                logger.debug("WebSocket already closed when trying to close after validation error")
+            except Exception as close_err:
+                logger.error(f"Failed to close WebSocket after validation error: {close_err}")
             return
+        finally:
+            # Close database connection if it was opened
+            if db is not None:
+                try:
+                    db.close()
+                except Exception as db_err:
+                    logger.debug(f"Error closing database connection: {db_err}")
     except Exception as e:
-        logger.error(f"Error validating showtime {showtime_id}: {e}")
-        await websocket.close(code=1011, reason="Internal server error")
+        logger.error(f"Error getting database connection for showtime {showtime_id_int}: {e}", exc_info=True)
+        try:
+            await websocket.close(code=1011, reason="Database connection error")
+        except (WebSocketDisconnect, RuntimeError):
+            # Connection already closed, that's fine
+            logger.debug("WebSocket already closed when trying to close after DB error")
+        except Exception as close_err:
+            logger.error(f"Failed to close WebSocket after DB error: {close_err}")
         return
-    finally:
-        try:
-            db.close()
-        except:
-            pass
     
-    # Connect to WebSocket manager (it will accept the connection)
+    # Add connection to manager (connection already accepted above)
     try:
-        await manager.connect(websocket, showtime_id_int)
+        if showtime_id_int not in manager.active_connections:
+            manager.active_connections[showtime_id_int] = []
+        manager.active_connections[showtime_id_int].append(websocket)
+        logger.info(f"🔌 WebSocket connected for showtime {showtime_id_int}. Total connections: {len(manager.active_connections[showtime_id_int])}")
     except Exception as e:
-        logger.error(f"Failed to accept WebSocket connection: {e}")
+        logger.error(f"Failed to register WebSocket connection: {e}", exc_info=True)
         try:
-            await websocket.close(code=1011, reason="Connection acceptance failed")
-        except:
-            pass
+            await websocket.close(code=1011, reason="Connection registration failed")
+        except (WebSocketDisconnect, RuntimeError):
+            # Connection already closed, that's fine
+            logger.debug("WebSocket already closed when trying to close after registration error")
+        except Exception as close_err:
+            logger.error(f"Failed to close WebSocket after registration error: {close_err}")
         return
     
     try:
@@ -1109,9 +1166,18 @@ async def websocket_endpoint(websocket: WebSocket, showtime_id: int):
                 'message': 'Connected to seat updates'
             })
             logger.info(f"✅ WebSocket connection established for showtime {showtime_id_int}")
+        except (WebSocketDisconnect, RuntimeError) as e:
+            # Connection closed immediately after accept - don't continue
+            logger.warning(f"WebSocket connection closed immediately after accept: {e}")
+            return
         except Exception as e:
+            # Check if it's a connection error
+            error_str = str(e).lower()
+            if any(keyword in error_str for keyword in ['connection', 'closed', 'disconnect', 'broken', 'not connected']):
+                logger.warning(f"WebSocket connection error during initial send: {e}")
+                return
             logger.error(f"Failed to send initial WebSocket message: {e}")
-            # Continue anyway - connection is still valid
+            # Continue to message handling loop only if it's not a connection error
         
         # Handle messages from client with improved error handling
         while True:
@@ -1126,10 +1192,23 @@ async def websocket_endpoint(websocket: WebSocket, showtime_id: int):
                     # Handle ping/pong
                     if json_data.get('type') == 'ping':
                         try:
-                            await websocket.send_json({'type': 'pong'})
+                            pong_response = {'type': 'pong'}
+                            # Include timestamp if provided by client
+                            if 'timestamp' in json_data:
+                                pong_response['timestamp'] = json_data['timestamp']
+                            await websocket.send_json(pong_response)
+                            logger.debug(f"✅ Sent pong response to ping from showtime {showtime_id_int}")
+                        except (WebSocketDisconnect, RuntimeError) as e:
+                            logger.warning(f"Connection closed while sending pong: {e}")
+                            break
                         except Exception as e:
                             logger.warning(f"Failed to send pong: {e}")
-                            break
+                            # Don't break on other errors - connection might still be valid
+                    
+                    # Handle pong from client (response to server ping)
+                    elif json_data.get('type') == 'pong':
+                        logger.debug(f"✅ Received pong from client for showtime {showtime_id_int}")
+                        # Just acknowledge, no action needed
                     
                     # You can handle other message types here in the future
                     # For now, we just keep the connection alive
@@ -1141,26 +1220,36 @@ async def websocket_endpoint(websocket: WebSocket, showtime_id: int):
             except asyncio.TimeoutError:
                 # Send ping to keep connection alive
                 try:
-                    await websocket.send_json({'type': 'ping'})
-                except Exception as e:
+                    await websocket.send_json({'type': 'ping', 'timestamp': int(time.time() * 1000)})
+                    logger.debug(f"Server sent ping to keep connection alive for showtime {showtime_id_int}")
+                except (WebSocketDisconnect, RuntimeError) as e:
                     # Connection is dead - break out of loop
                     logger.debug(f"WebSocket ping failed (connection closed): {e}")
                     break
-            except WebSocketDisconnect:
-                # Client disconnected normally
-                logger.info(f"WebSocket client disconnected for showtime {showtime_id_int}")
+                except Exception as e:
+                    # Connection might be dead - break out of loop
+                    logger.debug(f"WebSocket ping failed: {e}")
+                    break
+            except (WebSocketDisconnect, RuntimeError) as e:
+                # Client disconnected normally or connection is not connected
+                if isinstance(e, RuntimeError) and 'not connected' in str(e).lower():
+                    logger.info(f"WebSocket connection not connected for showtime {showtime_id_int}: {e}")
+                else:
+                    logger.info(f"WebSocket client disconnected for showtime {showtime_id_int}")
                 break
                     
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket client disconnected for showtime {showtime_id_int}")
+    except (WebSocketDisconnect, RuntimeError) as e:
+        if isinstance(e, RuntimeError) and 'not connected' in str(e).lower():
+            logger.info(f"WebSocket connection not connected for showtime {showtime_id_int}: {e}")
+        else:
+            logger.info(f"WebSocket client disconnected for showtime {showtime_id_int}")
     except Exception as e:
         logger.error(f"WebSocket error for showtime {showtime_id_int}: {e}", exc_info=True)
     finally:
-        manager.disconnect(websocket, showtime_id_int)
-        try:
-            db.close()
-        except:
-            pass
+        # Only disconnect if we successfully registered the connection
+        if showtime_id_int is not None:
+            manager.disconnect(websocket, showtime_id_int)
+        # Database connection is already closed in the inner finally block above
 
 
 # -------------------------

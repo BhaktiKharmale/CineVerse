@@ -430,29 +430,47 @@ const SeatSelection: React.FC = () => {
     })();
   }, [remainingSeconds, lockId, activeShowtimeId, setLock, currentOwner, selectedSeats]);
 
-  /* ---------------------- Release on unmount ---------------------- */
+  // Use refs to track current values for cleanup
+  const lockIdRef = useRef(lockId);
+  const activeShowtimeIdRef = useRef(activeShowtimeId);
+  const currentOwnerRef = useRef(currentOwner);
+  
+  // Update refs when values change
+  useEffect(() => {
+    lockIdRef.current = lockId;
+    activeShowtimeIdRef.current = activeShowtimeId;
+    currentOwnerRef.current = currentOwner;
+  }, [lockId, activeShowtimeId, currentOwner]);
+
+  /* ---------------------- Release lock on unmount ---------------------- */
   useEffect(() => {
     return () => {
+      // Use refs to get current values in cleanup
+      const currentLockId = lockIdRef.current;
+      const currentShowtimeId = activeShowtimeIdRef.current;
+      const currentOwnerValue = currentOwnerRef.current;
+      
       // Only release lock if:
       // 1. We should release (not navigating to checkout)
       // 2. We have a real lock (not temp selection)
       // 3. We're not in the middle of locking
-      if (shouldReleaseLockRef.current && lockId && !lockId.toString().startsWith('temp-') && !isLockingRef.current) {
+      if (shouldReleaseLockRef.current && currentLockId && !currentLockId.toString().startsWith('temp-') && !isLockingRef.current) {
         // Prevent multiple simultaneous unlock calls
         if (!unlockInProgressRef.current) {
           unlockInProgressRef.current = true;
-          showtimeService.unlockSeats(activeShowtimeId || '', { 
-            owner: currentOwner 
+          showtimeService.unlockSeats(currentShowtimeId || '', { 
+            owner: currentOwnerValue 
           }).catch(() => null).finally(() => {
             unlockInProgressRef.current = false;
           });
         }
       }
-      // Always clear context and disconnect
+      // Clear lock context (but don't disconnect WebSocket here - let WebSocket useEffect handle it)
       clearLock({ silent: true }).catch(() => null);
-      disconnectFromSeatUpdates();
     };
-  }, [clearLock, lockId, selectedSeats.length, activeShowtimeId, currentOwner]);
+    // Only run cleanup on unmount - use refs for current values
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only cleanup on unmount
 
   /* ---------------------- IMPROVED WebSocket Updates ---------------------- */
   useEffect(() => {

@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 # Lifespan events (startup/shutdown)  
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
+    
     # Redis init (non-fatal)
     # inside lifespan in app/main.py (replace the Redis init block)
     # Redis init (non-fatal)
@@ -32,15 +34,70 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠ AI Agent initialization warning: {e}")
 
+    # Yield control to the application
+    # If cancelled (e.g., Ctrl+C), the exception will propagate naturally
+    # and the shutdown code below will handle cleanup
     yield
-
-    # Shutdown: close redis (non-fatal)
+    
+    # Shutdown: cleanup resources gracefully
+    # Wrap entire shutdown in try-except to handle cancellation gracefully
     try:
-        from app.core.redis import close_redis
-        await close_redis()
-        logger.info("✓ Redis connection closed")
+        logger.info("🔄 Starting graceful shutdown...")
+        
+        # Close WebSocket connections
+        try:
+            from app.routers.public_routes import manager
+            # Close all active WebSocket connections
+            for showtime_id, connections in list(manager.active_connections.items()):
+                for websocket in list(connections):
+                    try:
+                        await websocket.close(code=1001, reason="Server shutting down")
+                    except Exception:
+                        pass  # Connection may already be closed
+            logger.info("✓ WebSocket connections closed")
+        except asyncio.CancelledError:
+            logger.debug("Shutdown cancelled during WebSocket cleanup")
+        except Exception as e:
+            logger.debug(f"Error closing WebSocket connections: {e}")
+        
+        # Cancel any pending background tasks
+        try:
+            # Get all running tasks (excluding the current one)
+            current_task = asyncio.current_task()
+            tasks = [task for task in asyncio.all_tasks() 
+                     if not task.done() and task is not current_task]
+            if tasks:
+                logger.info(f"🔄 Cancelling {len(tasks)} background tasks...")
+                for task in tasks:
+                    task.cancel()
+                # Wait a bit for tasks to cancel (with timeout)
+                try:
+                    await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=2.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    pass  # Expected during shutdown
+                logger.info("✓ Background tasks cancelled")
+        except asyncio.CancelledError:
+            logger.debug("Shutdown cancelled during task cancellation")
+        except Exception as e:
+            logger.debug(f"Error cancelling background tasks: {e}")
+        
+        # Close redis (non-fatal)
+        try:
+            from app.core.redis import close_redis
+            await close_redis()
+            logger.info("✓ Redis connection closed")
+        except asyncio.CancelledError:
+            # Normal during shutdown - just log
+            logger.debug("Shutdown cancelled during Redis cleanup")
+        except Exception as e:
+            logger.error(f"Error closing Redis: {e}")
+        
+        logger.info("✅ Graceful shutdown complete")
+    except asyncio.CancelledError:
+        # If shutdown itself is cancelled, just log and exit
+        logger.debug("Shutdown process cancelled (normal during Ctrl+C)")
     except Exception as e:
-        logger.error(f"Error closing Redis: {e}")
+        logger.error(f"Unexpected error during shutdown: {e}", exc_info=True)
 
 # Build FastAPI app
 fastapi_app = FastAPI(
