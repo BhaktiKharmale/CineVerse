@@ -56,7 +56,7 @@ const CheckoutPage: React.FC = () => {
         console.error("[Checkout] Failed to load order", error);
         toast.error("Order not found or expired.");
         await clearLock({ silent: true });
-        navigate(`/show/${showtimeId ?? ""}/seats`, { replace: true });
+        navigate(`/seats?showtimeId=${showtimeId ?? ""}`, { replace: true });
       } finally {
         setLoading(false);
       }
@@ -85,7 +85,7 @@ const CheckoutPage: React.FC = () => {
     if (remainingSeconds === 0) {
       toast.error("Order expired. Please select seats again.");
       reset();
-      navigate(`/show/${showtimeId ?? ""}/seats`, { replace: true });
+      navigate(`/seats?showtimeId=${showtimeId ?? ""}`, { replace: true });
     }
   }, [remainingSeconds, navigate, reset, showtimeId]);
 
@@ -100,11 +100,33 @@ const CheckoutPage: React.FC = () => {
     }
 
     const anyOrder: any = order as any;
+    
+    // Backend returns amount in paise, breakdown values are also in paise
+    // Convert to rupees by dividing by 100
+    const amountInPaise = anyOrder.amount ?? 0;
+    const amountInRupees = amountInPaise >= 100 ? amountInPaise / 100 : amountInPaise;
+    
+    // Breakdown values are in paise, convert to rupees
+    const baseAmountPaise = anyOrder.breakdown?.baseAmount ?? amountInPaise;
+    const convenienceFeePaise = anyOrder.breakdown?.convenienceFee ?? 0;
+    const taxPaise = anyOrder.breakdown?.tax ?? 0;
+    
+    // Convert breakdown from paise to rupees
+    const base = baseAmountPaise >= 100 ? baseAmountPaise / 100 : baseAmountPaise;
+    const fee = convenienceFeePaise >= 100 ? convenienceFeePaise / 100 : convenienceFeePaise;
+    const tax = taxPaise >= 100 ? taxPaise / 100 : taxPaise;
+    
+    // Total should be the amount in rupees (already converted above)
+    // Or calculate from breakdown: base + fee + tax
+    const total = anyOrder.breakdown 
+      ? base + fee + tax  // Use breakdown if available
+      : amountInRupees;   // Fallback to amount
+    
     return {
-      base: anyOrder.breakdown?.baseAmount ?? (anyOrder.amount ?? 0),
-      fee: anyOrder.breakdown?.convenienceFee ?? 0,
-      tax: anyOrder.breakdown?.tax ?? 0,
-      total: anyOrder.amount ?? 0,
+      base,
+      fee,
+      tax,
+      total,
     };
   }, [order]);
 
@@ -279,7 +301,7 @@ const CheckoutPage: React.FC = () => {
             <button
               type="button"
               className="mt-6 text-sm text-[#f6c800] underline underline-offset-4 hover:text-[#ffd836]"
-              onClick={() => navigate(`/show/${showtimeId}/seats`)}
+              onClick={() => navigate(`/seats?showtimeId=${showtimeId}`)}
             >
               Change seats
             </button>

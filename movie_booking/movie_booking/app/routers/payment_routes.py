@@ -60,6 +60,7 @@ class CreateOrderResponse(BaseModel):
     currency: str
     notes: Dict[str, Any] = {}
     user_email: str
+    breakdown: Optional[Dict[str, Any]] = None  # Optional breakdown for frontend display
 
 
 class VerifyPaymentResponse(BaseModel):
@@ -270,13 +271,48 @@ async def create_order(
         else:
             try:
                 if amount_raw is None:
-                    fallback_price_per = getattr(showtime, "price", None) or request_data.get("price_per_seat") or 250.0
-                    try:
-                        fallback_price_per = float(fallback_price_per)
-                    except Exception:
-                        fallback_price_per = 250.0
-                    amount_rupees = float(fallback_price_per) * max(1, len(seat_ids))
-                    logger.debug("create_order: amount missing - computed fallback amount_rupees=%s", amount_rupees)
+                    # FIXED: Calculate amount from seat prices if seats are provided with prices
+                    seats_data = request_data.get("seats") or request_data.get("seat_list") or []
+                    if isinstance(seats_data, list) and len(seats_data) > 0:
+                        # Check if seats have price information
+                        total_from_seats = 0.0
+                        has_prices = False
+                        seat_count = 0
+                        for seat in seats_data:
+                            if isinstance(seat, dict):
+                                price = seat.get("price") or seat.get("price_rupees") or seat.get("amount")
+                                if price is not None:
+                                    try:
+                                        price_float = float(price)
+                                        total_from_seats += price_float
+                                        has_prices = True
+                                        seat_count += 1
+                                        logger.debug("create_order: seat %s has price %s", seat.get("seatId") or seat.get("seat_id") or seat.get("id"), price_float)
+                                    except (ValueError, TypeError) as e:
+                                        logger.warning("create_order: invalid price for seat %s: %s", seat, e)
+                                        pass
+                        
+                        if has_prices and total_from_seats > 0:
+                            amount_rupees = total_from_seats
+                            logger.info("create_order: calculated amount from %d seat prices: %s (total: %s)", seat_count, total_from_seats, amount_rupees)
+                        else:
+                            # Fallback to showtime price or default
+                            fallback_price_per = getattr(showtime, "price", None) or request_data.get("price_per_seat") or 250.0
+                            try:
+                                fallback_price_per = float(fallback_price_per)
+                            except Exception:
+                                fallback_price_per = 250.0
+                            amount_rupees = float(fallback_price_per) * max(1, len(seat_ids))
+                            logger.debug("create_order: amount missing - computed fallback amount_rupees=%s", amount_rupees)
+                    else:
+                        # No seats data, use fallback
+                        fallback_price_per = getattr(showtime, "price", None) or request_data.get("price_per_seat") or 250.0
+                        try:
+                            fallback_price_per = float(fallback_price_per)
+                        except Exception:
+                            fallback_price_per = 250.0
+                        amount_rupees = float(fallback_price_per) * max(1, len(seat_ids))
+                        logger.debug("create_order: amount missing - computed fallback amount_rupees=%s", amount_rupees)
                 else:
                     amount_rupees = _parse_amount_rupees(amount_raw)
             except HTTPException:
@@ -442,13 +478,36 @@ async def create_order(
             amount_rupees,
         )
 
+        # Calculate breakdown for frontend display
+        # Base amount is the sum of seat prices (already calculated as amount_rupees)
+        base_amount_rupees = amount_rupees
+        # Convenience fee: Optional, can be configured (default 0 for now)
+        convenience_fee_percent = request_data.get("convenience_fee_percent", 0) or 0
+        convenience_fee_rupees = round(base_amount_rupees * (float(convenience_fee_percent) / 100.0), 2) if convenience_fee_percent > 0 else 0.0
+        # Tax (GST): Optional, can be configured (default 0 for now)
+        tax_percent = request_data.get("tax_percent", 0) or 0
+        tax_rupees = round((base_amount_rupees + convenience_fee_rupees) * (float(tax_percent) / 100.0), 2) if tax_percent > 0 else 0.0
+        # Total = base + fee + tax
+        total_rupees = base_amount_rupees + convenience_fee_rupees + tax_rupees
+        
+        # Convert breakdown to paise for consistency
+        breakdown = {
+            "baseAmount": int(round(base_amount_rupees * 100)),  # in paise
+            "convenienceFee": int(round(convenience_fee_rupees * 100)),  # in paise
+            "tax": int(round(tax_rupees * 100)),  # in paise
+        }
+        
+        # Final amount in paise (total including fees and tax)
+        final_amount_paise = int(round(total_rupees * 100))
+
         return CreateOrderResponse(
             key_id=RAZORPAY_KEY_ID,
             order_id=str(created_order.get("id")),
-            amount=amount_paise,
+            amount=final_amount_paise,  # Total including fees and tax
             currency=currency,
             notes=created_order.get("notes", {}),
             user_email=str(user_email),
+            breakdown=breakdown,
         )
 
     except HTTPException:

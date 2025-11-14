@@ -500,36 +500,61 @@ const SeatSelection: React.FC = () => {
           );
           
           if (updatedSeat) {
-            const isLockedByOthers = updatedSeat.status === 'locked' && 
-                                   updatedSeat.locked_by && 
-                                   updatedSeat.locked_by !== currentOwner;
-            const wasSelectedByUs = selectedSeatIds.has(String(currentSeat.id));
-            const isInContext = contextLockedIds.has(String(currentSeat.id));
+            const updatedSeatId = getIdNumber(updatedSeat);
+            const currentSeatId = getIdNumber(currentSeat);
             
-            if (isLockedByOthers && wasSelectedByUs) {
-              console.warn(`[SeatSelection] Our selected seat ${currentSeat.label} was locked by someone else!`);
-              toast.error(`Seat ${currentSeat.label} was taken by another user.`);
+            // Match by ID (handle different ID formats)
+            if (updatedSeatId === currentSeatId || 
+                String(updatedSeat.id ?? updatedSeat.seat_id) === String(currentSeat.id) ||
+                String(updatedSeat.id ?? updatedSeat.seat_id) === String(currentSeat.seatId)) {
+              const isLockedByOthers = updatedSeat.status === 'locked' && 
+                                     (updatedSeat.locked_by ?? updatedSeat.lockedBy) && 
+                                     (updatedSeat.locked_by ?? updatedSeat.lockedBy) !== currentOwner;
+              const wasSelectedByUs = selectedSeatIds.has(String(currentSeat.id));
+              const isInContext = contextLockedIds.has(String(currentSeat.id));
+              
+              if (isLockedByOthers && wasSelectedByUs) {
+                console.warn(`[SeatSelection] Our selected seat ${currentSeat.label} was locked by someone else!`);
+                toast.error(`Seat ${currentSeat.label} was taken by another user.`);
+              }
+              
+              // Preserve selection state unless locked by others
+              // Check both current selection and context
+              const shouldBeSelected = !isLockedByOthers && (wasSelectedByUs || isInContext);
+              
+              return {
+                ...currentSeat,
+                status: updatedSeat.status,
+                lockedBy: updatedSeat.locked_by ?? updatedSeat.lockedBy,
+                isSelected: shouldBeSelected
+              };
             }
-            
-            // Preserve selection state unless locked by others
-            // Check both current selection and context
-            const shouldBeSelected = !isLockedByOthers && (wasSelectedByUs || isInContext);
-            
-            return {
-              ...currentSeat,
-              status: updatedSeat.status,
-              lockedBy: updatedSeat.locked_by,
-              isSelected: shouldBeSelected
-            };
           }
           return currentSeat;
         });
       });
     };
 
-    const handleSeatLocked = (seat: any) => {
+    const handleSeatLocked = (payload: any) => {
       setLastUpdate(new Date());
-      console.log('[SeatSelection] Seat locked:', seat);
+      console.log('[SeatSelection] Seat locked event received:', payload);
+      
+      // Extract seat data from payload
+      const seatData = payload?.seat ?? payload;
+      if (!seatData) {
+        console.warn('[SeatSelection] Invalid seat_locked payload:', payload);
+        return;
+      }
+      
+      const lockedSeatId = getIdNumber(seatData);
+      const lockedBy = seatData.locked_by ?? seatData.lockedBy ?? seatData.owner;
+      
+      console.log('[SeatSelection] Processing seat lock:', { 
+        seatId: lockedSeatId, 
+        lockedBy, 
+        currentOwner,
+        isLockedByOthers: lockedBy && lockedBy !== currentOwner
+      });
       
       // Use functional update to access current seats state
       setSeats(prev => {
@@ -541,18 +566,35 @@ const SeatSelection: React.FC = () => {
         // Also check context for locked seats
         const contextLockedIds = new Set((lockedSeats ?? []).map((s: any) => String(getIdNumber(s))));
         
-        return prev.map(s => {
-          if (getIdNumber(s) === getIdNumber(seat)) {
-            const isLockedByOthers = seat.locked_by && seat.locked_by !== currentOwner;
+        let found = false;
+        const updated = prev.map(s => {
+          const currentSeatId = getIdNumber(s);
+          
+          // Match by ID (handle different ID formats)
+          if (currentSeatId === lockedSeatId || 
+              String(s.id) === String(lockedSeatId) ||
+              String(s.seatId) === String(lockedSeatId) ||
+              String(seatData.seat_id) === String(s.id) ||
+              String(seatData.seat_id) === String(s.seatId)) {
+            found = true;
+            const isLockedByOthers = lockedBy && lockedBy !== currentOwner;
             const wasSelectedByUs = selectedSeatIds.has(String(s.id));
             const isInContext = contextLockedIds.has(String(s.id));
+            
+            console.log('[SeatSelection] Updating seat:', {
+              label: s.label,
+              wasSelectedByUs,
+              isLockedByOthers,
+              lockedBy,
+              currentOwner
+            });
             
             if (isLockedByOthers && wasSelectedByUs) {
               toast.error(`Seat ${s.label} was just taken by another user.`);
               return { 
                 ...s, 
                 status: 'locked', 
-                lockedBy: seat.locked_by,
+                lockedBy: lockedBy,
                 isSelected: false 
               };
             }
@@ -563,28 +605,63 @@ const SeatSelection: React.FC = () => {
             return { 
               ...s, 
               status: 'locked',
-              lockedBy: seat.locked_by,
+              lockedBy: lockedBy,
               isSelected: shouldBeSelected
             };
           }
           return s;
         });
+        
+        if (!found) {
+          console.warn('[SeatSelection] Seat not found in local state:', lockedSeatId, 'Available IDs:', prev.map(s => getIdNumber(s)));
+        }
+        
+        return updated;
       });
     };
 
-    const handleSeatReleased = (seat: any) => {
+    const handleSeatReleased = (payload: any) => {
       setLastUpdate(new Date());
-      console.log('[SeatSelection] Seat released:', seat);
+      console.log('[SeatSelection] Seat released event received:', payload);
       
-      setSeats(prev => prev.map(s => 
-        getIdNumber(s) === getIdNumber(seat) 
-          ? { 
+      // Extract seat data from payload
+      const seatData = payload?.seat ?? payload;
+      if (!seatData) {
+        console.warn('[SeatSelection] Invalid seat_released payload:', payload);
+        return;
+      }
+      
+      const releasedSeatId = getIdNumber(seatData);
+      console.log('[SeatSelection] Processing seat release:', { seatId: releasedSeatId });
+      
+      setSeats(prev => {
+        let found = false;
+        const updated = prev.map(s => {
+          const currentSeatId = getIdNumber(s);
+          
+          // Match by ID (handle different ID formats)
+          if (currentSeatId === releasedSeatId || 
+              String(s.id) === String(releasedSeatId) ||
+              String(s.seatId) === String(releasedSeatId) ||
+              String(seatData.seat_id) === String(s.id) ||
+              String(seatData.seat_id) === String(s.seatId)) {
+            found = true;
+            console.log('[SeatSelection] Releasing seat:', s.label);
+            return { 
               ...s, 
               status: 'available',
               lockedBy: undefined
-            }
-          : s
-      ));
+            };
+          }
+          return s;
+        });
+        
+        if (!found) {
+          console.warn('[SeatSelection] Seat not found for release:', releasedSeatId);
+        }
+        
+        return updated;
+      });
     };
 
     const handleError = (error: string) => {
@@ -640,7 +717,10 @@ const SeatSelection: React.FC = () => {
         });
       }
     };
-  }, [activeShowtimeId, currentOwner, lockedSeats]); // Removed seats from deps to prevent reconnections
+    // Only depend on showtimeId - WebSocket should connect once per showtime
+    // Removed currentOwner and lockedSeats to prevent reconnections on seat selection
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeShowtimeId]); // Only reconnect if showtimeId changes
 
   const formatTimer = () => {
     if (!lockExpiry || remainingSeconds === null) return "--:--";
@@ -727,7 +807,7 @@ const SeatSelection: React.FC = () => {
             setLockExpiry(null);
           }
         } else {
-          // Update context with remaining seats (no API call if no real lock yet)
+          // Update context with remaining seats and unlock the deselected seat
           const remainingSeatsForContext = remainingSelection.map(item => ({
             seatId: item.id,
             label: item.label,
@@ -736,8 +816,21 @@ const SeatSelection: React.FC = () => {
           
           console.log('Updating selection with remaining seats:', remainingSeatsForContext);
           
-          // If we have a real lock, update it; otherwise just update context
+          // If we have a real lock, unlock the deselected seat and update context
           if (lockId && !lockId.toString().startsWith('temp-') && lockExpiry) {
+            // Unlock the deselected seat (this will broadcast to other users)
+            try {
+              await showtimeService.unlockSeats(activeShowtimeId, {
+                owner: currentOwner,
+                seatIds: [seat.id], // Unlock just this seat
+              });
+              console.log('Seat unlocked and broadcasted to other users');
+            } catch (unlockErr) {
+              console.warn('Failed to unlock deselected seat:', unlockErr);
+              // Continue anyway - best effort
+            }
+            
+            // Update context with remaining seats
             setLock(lockId, lockExpiry, remainingSeatsForContext);
           } else {
             // Temp selection - just update context
@@ -747,7 +840,7 @@ const SeatSelection: React.FC = () => {
           }
         }
       } else {
-        // SELECTING: Only update local state - NO LOCKING until checkout
+        // SELECTING: Lock seat immediately for real-time availability
         console.log('Selecting seat:', seat.label);
         
         // Check if seat is already selected (prevent duplicates)
@@ -759,10 +852,10 @@ const SeatSelection: React.FC = () => {
           return;
         }
         
-        // Immediate optimistic UI update (local selection only)
+        // Immediate optimistic UI update (local selection)
         const updatedSeats = seats.map(p =>
           p.id === seat.id 
-            ? { ...p, isSelected: true }
+            ? { ...p, isSelected: true, status: "locked", lockedBy: currentOwner }
             : p
         );
         setSeats(updatedSeats);
@@ -771,19 +864,107 @@ const SeatSelection: React.FC = () => {
         const nextSelected = [...selectedSeats, { ...seat, isSelected: true }];
         console.log('Next selected seats:', nextSelected.map(s => s.label));
         
-        // Store selection in context (without locking)
-        const seatsForContext = nextSelected.map(item => ({
-          seatId: item.id,
-          label: item.label,
-          price: item.price ?? 0,
-        }));
-        
-        // Update context with temporary lock ID (will be replaced when locking at checkout)
-        const tempLockId = `temp-${Date.now()}`;
-        const tempExpiry = new Date(Date.now() + 180000).toISOString();
-        setLock(tempLockId, tempExpiry, seatsForContext);
-        
-        console.log('Seat selected (local only, will lock at checkout)');
+        // Lock seat immediately via API (this will broadcast to other users)
+        try {
+          const seatIds = nextSelected.map(s => s.id);
+          const lockResp = await showtimeService.lockSeats(activeShowtimeId, {
+            owner: currentOwner,
+            seatIds: seatIds,
+            ttlMs: 180000, // 3 minutes
+          });
+          
+          console.log('Seats locked successfully:', lockResp);
+          
+          // Handle conflicts (seat was taken by someone else)
+          if (lockResp.conflicts && lockResp.conflicts.length > 0) {
+            const conflictIds = lockResp.conflicts.map((c: any) => c.seatId ?? c.seat_id ?? c);
+            const conflictedSeat = nextSelected.find(s => conflictIds.includes(s.id));
+            
+            if (conflictedSeat) {
+              toast.error(`Seat ${conflictedSeat.label} was just taken by another user.`);
+              // Remove conflicted seat from selection
+              const availableSeats = nextSelected.filter(s => !conflictIds.includes(s.id));
+              setSeats(prev => prev.map(p => 
+                conflictIds.includes(p.id)
+                  ? { ...p, isSelected: false, status: "locked", lockedBy: undefined }
+                  : p
+              ));
+              
+              if (availableSeats.length === 0) {
+                await clearLock({ silent: true });
+                setLockExpiry(null);
+                return;
+              }
+              
+              // Update context with available seats only
+              const seatsForContext = availableSeats.map(item => ({
+                seatId: item.id,
+                label: item.label,
+                price: item.price ?? 0,
+              }));
+              
+              if (lockResp.lockId && lockResp.expiresAt) {
+                setLock(lockResp.lockId, lockResp.expiresAt, seatsForContext);
+                setLockExpiry(lockResp.expiresAt);
+              }
+              return;
+            }
+          }
+          
+          // Success - update context with real lock
+          const seatsForContext = nextSelected.map(item => ({
+            seatId: item.id,
+            label: item.label,
+            price: item.price ?? 0,
+          }));
+          
+          if (lockResp.lockId && lockResp.expiresAt) {
+            setLock(lockResp.lockId, lockResp.expiresAt, seatsForContext);
+            setLockExpiry(lockResp.expiresAt);
+            
+            // Update seat status to locked
+            setSeats(prev => prev.map(p => 
+              nextSelected.some(s => s.id === p.id)
+                ? { ...p, status: "locked", lockedBy: currentOwner, isSelected: true }
+                : p
+            ));
+          }
+          
+          console.log('Seat locked and broadcasted to other users');
+        } catch (lockError: any) {
+          console.error('Failed to lock seat:', lockError);
+          
+          // Handle conflict errors
+          if (lockError?.response?.status === 409) {
+            const conflictData = lockError?.response?.data;
+            const conflictIds = conflictData?.conflicts?.map((c: any) => c.seatId ?? c.seat_id ?? c) ?? [];
+            
+            if (conflictIds.includes(seat.id)) {
+              toast.error(`Seat ${seat.label} was just taken by another user.`);
+              // Revert selection
+              setSeats(prev => prev.map(p => 
+                p.id === seat.id 
+                  ? { ...p, isSelected: false, status: "locked" }
+                  : p
+              ));
+              return;
+            }
+          }
+          
+          // For other errors, still allow selection but show warning
+          toast.error("Unable to lock seat. Please try again.");
+          
+          // Store selection in context with temporary lock ID (will retry at checkout)
+          const seatsForContext = nextSelected.map(item => ({
+            seatId: item.id,
+            label: item.label,
+            price: item.price ?? 0,
+          }));
+          
+          const tempLockId = `temp-${Date.now()}`;
+          const tempExpiry = new Date(Date.now() + 180000).toISOString();
+          setLock(tempLockId, tempExpiry, seatsForContext);
+        }
       }
     } catch (err: any) {
       console.error("Seat locking error:", err);
@@ -814,87 +995,110 @@ const SeatSelection: React.FC = () => {
       setIsLocking(true);
       isLockingRef.current = true;
 
-      // STEP 1: Lock seats NOW (before payment) - this is when locking should happen
-      console.log('Locking seats before checkout:', selectedSeats.map(s => s.id));
+      // STEP 1: Ensure seats are locked (they should already be locked from selection, but extend lock if needed)
+      console.log('Proceeding to checkout with seats:', selectedSeats.map(s => s.id));
       const seatIds = selectedSeats.map(s => s.id);
       
+      // If we have a real lock (not temp), extend it; otherwise lock now
       let lockResp;
-      try {
-        lockResp = await showtimeService.lockSeats(activeShowtimeId, {
-          owner: currentOwner,
-          seatIds: seatIds,
-          ttlMs: 180000, // 3 minutes to complete payment
-        });
-
-        console.log('Lock response:', lockResp);
-
-        // Handle conflicts
-        if (lockResp.conflicts && lockResp.conflicts.length > 0) {
-          console.warn('Lock conflicts detected:', lockResp.conflicts);
-          const conflictIds = lockResp.conflicts.map((c: any) => c.seatId);
+      if (lockId && !lockId.toString().startsWith('temp-') && lockExpiry) {
+        // Seats are already locked, just extend the lock
+        console.log('Extending existing lock:', lockId);
+        try {
+          const extendResp = await showtimeService.extendLock(activeShowtimeId, {
+            lockId,
+            owner: currentOwner,
+            seatIds: seatIds,
+            ttlMs: 180000, // 3 minutes to complete payment
+          });
           
-          // Remove conflicted seats from selection
-          const availableSeats = selectedSeats.filter(s => !conflictIds.includes(s.id));
+          lockResp = {
+            lockId: lockId,
+            expiresAt: extendResp.expiresAt || lockExpiry,
+            seats: selectedSeats.map(s => ({ seatId: s.id, status: "locked" })),
+          };
           
-          if (availableSeats.length === 0) {
-            toast.error("All selected seats were taken. Please select different seats.");
-            await clearLock({ silent: true }).catch(() => null);
-            setSeats(prev => prev.map(p => ({ ...p, isSelected: false })));
-            return;
+          setLockExpiry(extendResp.expiresAt || lockExpiry);
+        } catch (extendError: any) {
+          console.warn('Failed to extend lock, will try to lock again:', extendError);
+          // Fall through to lock again
+        }
+      }
+      
+      // If we don't have a valid lock, lock now
+      if (!lockResp) {
+        console.log('Locking seats before checkout:', seatIds);
+        try {
+          lockResp = await showtimeService.lockSeats(activeShowtimeId, {
+            owner: currentOwner,
+            seatIds: seatIds,
+            ttlMs: 180000, // 3 minutes to complete payment
+          });
+
+          console.log('Lock response:', lockResp);
+
+          // Handle conflicts
+          if (lockResp.conflicts && lockResp.conflicts.length > 0) {
+            console.warn('Lock conflicts detected:', lockResp.conflicts);
+            const conflictIds = lockResp.conflicts.map((c: any) => c.seatId ?? c.seat_id ?? c);
+            
+            // Remove conflicted seats from selection
+            const availableSeats = selectedSeats.filter(s => !conflictIds.includes(s.id));
+            
+            if (availableSeats.length === 0) {
+              toast.error("All selected seats were taken. Please select different seats.");
+              await clearLock({ silent: true }).catch(() => null);
+              setSeats(prev => prev.map(p => ({ ...p, isSelected: false })));
+              return;
+            }
+            
+            // Update selection to remove conflicted seats
+            setSeats(prev => prev.map(p => 
+              conflictIds.includes(p.id)
+                ? { ...p, isSelected: false, status: "locked", lockedBy: undefined }
+                : p
+            ));
+            
+            toast.error("Some seats were taken. Please proceed with remaining seats or select different ones.");
+            
+            // Update selected seats to available ones
+            const seatsForContext = availableSeats.map(item => ({
+              seatId: item.id,
+              label: item.label,
+              price: item.price ?? 0,
+            }));
+            
+            setLock(lockResp.lockId, lockResp.expiresAt, seatsForContext);
+            setLockExpiry(lockResp.expiresAt);
+            
+            // Continue with available seats - update selectedSeats reference
+            // Note: This won't update the component state immediately, but validation will catch it
+          } else {
+            // Success - update context state with real lock
+            const seatsForContext = selectedSeats.map(item => ({
+              seatId: item.id,
+              label: item.label,
+              price: item.price ?? 0,
+            }));
+            
+            setLock(lockResp.lockId, lockResp.expiresAt, seatsForContext);
+            setLockExpiry(lockResp.expiresAt);
+          }
+        } catch (lockError: any) {
+          console.error('Lock API error:', lockError);
+          const status = lockError?.response?.status;
+          
+          if (status === 409) {
+            toast.error("Some seats are no longer available. Please reselect seats.");
+          } else if (status === 503) {
+            toast.error("Seat locking service temporarily unavailable. Please try again.");
+          } else {
+            toast.error(lockError?.message || "Unable to lock seats. Please try again.");
           }
           
-          // Update selection to remove conflicted seats
-          setSeats(prev => prev.map(p => 
-            conflictIds.includes(p.id)
-              ? { ...p, isSelected: false, status: "available" }
-              : p
-          ));
-          
-          toast.error("Some seats were taken. Please proceed with remaining seats or select different ones.");
-          
-          // Update selected seats to available ones
-          const seatsForContext = availableSeats.map(item => ({
-            seatId: item.id,
-            label: item.label,
-            price: item.price ?? 0,
-          }));
-          
-          setLock(lockResp.lockId, lockResp.expiresAt, seatsForContext);
-          setLockExpiry(lockResp.expiresAt);
-          
-          // Continue with available seats
-        } else {
-          // Success - update context state with real lock
-          const seatsForContext = selectedSeats.map(item => ({
-            seatId: item.id,
-            label: item.label,
-            price: item.price ?? 0,
-          }));
-          
-          setLock(lockResp.lockId, lockResp.expiresAt, seatsForContext);
-          setLockExpiry(lockResp.expiresAt);
-          
-          // Update seat status to locked
-          setSeats(prev => prev.map(p => 
-            selectedSeats.some(s => s.id === p.id)
-              ? { ...p, status: "locked", lockedBy: currentOwner }
-              : p
-          ));
+          await clearLock({ silent: true }).catch(() => null);
+          return;
         }
-      } catch (lockError: any) {
-        console.error('Lock API error:', lockError);
-        const status = lockError?.response?.status;
-        
-        if (status === 409) {
-          toast.error("Some seats are no longer available. Please reselect seats.");
-        } else if (status === 503) {
-          toast.error("Seat locking service temporarily unavailable. Please try again.");
-        } else {
-          toast.error(lockError?.message || "Unable to lock seats. Please try again.");
-        }
-        
-        await clearLock({ silent: true }).catch(() => null);
-        return;
       }
 
       // STEP 2: Validate locks (double-check before creating order)

@@ -62,19 +62,31 @@ class WebSocketService {
 
     // If already connected to the same showtime, don't reconnect
     if (this.socket?.readyState === WebSocket.OPEN && this.showtimeId === validatedShowtimeId) {
-      console.log('[WebSocket] Already connected to this showtime, skipping...');
+      console.log('[WebSocket] Already connected to this showtime, skipping reconnect');
+      return;
+    }
+
+    // If currently connecting to the same showtime, don't start another connection
+    if (this.isConnecting && this.showtimeId === validatedShowtimeId) {
+      console.log('[WebSocket] Already connecting to this showtime, skipping...');
       return;
     }
 
     // If connecting or connected to different showtime, disconnect first
-    if (this.isConnecting || this.socket?.readyState === WebSocket.OPEN || this.socket?.readyState === WebSocket.CONNECTING) {
-      console.log('[WebSocket] Closing existing connection before connecting to new showtime...');
-      this.disconnect();
-      // Wait a bit for disconnect to complete
-      setTimeout(() => {
-        this.connect(showtimeId);
-      }, 100);
-      return;
+    if (this.isConnecting || (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING))) {
+      if (this.showtimeId !== validatedShowtimeId) {
+        console.log('[WebSocket] Closing existing connection before connecting to new showtime...');
+        this.disconnect();
+        // Wait a bit for disconnect to complete
+        setTimeout(() => {
+          this.connect(showtimeId);
+        }, 100);
+        return;
+      } else {
+        // Same showtime but connection in progress - wait for it to complete
+        console.log('[WebSocket] Connection already in progress for this showtime, skipping...');
+        return;
+      }
     }
 
     this.showtimeId = validatedShowtimeId;
@@ -147,9 +159,10 @@ class WebSocketService {
             return;
           }
           
-          // Log other message types
-          console.log('[WebSocket] Message received:', data.type);
+          // Log other message types with full data for debugging
+          console.log('[WebSocket] Message received:', data.type, data);
           
+          // Emit the event with the full data payload
           this.emit(data.type, data);
         } catch (error) {
           console.error('[WebSocket] Error parsing message:', error);

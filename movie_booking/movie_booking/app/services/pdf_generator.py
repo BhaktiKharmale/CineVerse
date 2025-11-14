@@ -1,20 +1,15 @@
 """
-PDF Ticket Generator with QR Code and Custom Logo
-Black, Golden, Red & White Theme
+Modern PDF Ticket Generator with QR Code and Custom Logo
+Clean, Professional Design
 """
 import os
 import qrcode  # type: ignore[import-untyped]
 import hashlib
 import json
-from reportlab.lib.pagesizes import letter, A4  # type: ignore[import-untyped]
-from reportlab.lib.units import inch  # type: ignore[import-untyped]
+from reportlab.lib.pagesizes import A4  # type: ignore[import-untyped]
 from reportlab.pdfgen import canvas  # type: ignore[import-untyped]
 from reportlab.lib import colors  # type: ignore[import-untyped]
 from reportlab.platypus import Table, TableStyle  # type: ignore[import-untyped]
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore[import-untyped]
-from reportlab.platypus import Paragraph  # type: ignore[import-untyped]
-from reportlab.pdfbase import pdfmetrics  # type: ignore[import-untyped]
-from reportlab.pdfbase.ttfonts import TTFont  # type: ignore[import-untyped]
 from datetime import datetime
 import logging
 
@@ -25,16 +20,28 @@ MEDIA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file_
 TICKETS_DIR = os.path.join(MEDIA_DIR, "tickets")
 os.makedirs(TICKETS_DIR, exist_ok=True)
 
-# Custom logo path
-LOGO_PATH = r"D:\P99SOFT Taining\final project\frontend\public\logo.jpg"
+# Custom logo path - try multiple possible locations
+LOGO_PATHS = [
+    r"D:\P99SOFT Taining\final project\frontend\public\logo.jpg",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "frontend", "public", "logo.jpg"),
+    "logo.jpg"  # Fallback to current directory
+]
 
-# Color Theme
-BLACK = "#000000"
-GOLDEN = "#D4AF37"  # Rich gold
-RED = "#C41E3A"     # Deep red
+LOGO_PATH = None
+for path in LOGO_PATHS:
+    if os.path.exists(path):
+        LOGO_PATH = path
+        break
+
+# Modern Color Theme
+BLACK = "#0A0A0A"
+DARK_BG = "#111111"
+ACCENT_GOLD = "#F6C800"
+ACCENT_GOLD_LIGHT = "#FFD836"
 WHITE = "#FFFFFF"
-DARK_GRAY = "#1a1a1a"
-LIGHT_GOLD = "#F0E68C"  # Light gold for accents
+GRAY_LIGHT = "#E5E5E5"
+GRAY_MEDIUM = "#666666"
+GRAY_DARK = "#333333"
 
 
 def generate_qr_code(data: dict) -> str:
@@ -46,11 +53,12 @@ def generate_qr_code(data: dict) -> str:
     checksum = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
     data['checksum'] = checksum
     
-    # Generate QR code with theme colors
+    # Generate QR code with modern colors
     qr = qrcode.QRCode(version=1, box_size=10, border=2)
     qr.add_data(json.dumps(data))
     qr.make(fit=True)
     
+    # Use black on white for better scanning reliability
     qr_img = qr.make_image(fill_color=BLACK, back_color=WHITE)
     
     # Save QR code
@@ -71,8 +79,8 @@ def generate_ticket_pdf(
     showtime_id: int
 ) -> str:
     """
-    Generate PDF ticket with QR code and custom logo
-    Black, Golden, Red & White Theme
+    Generate modern PDF ticket with QR code and custom logo
+    Clean, professional design
     
     Args:
         booking_id: Booking ID
@@ -95,150 +103,157 @@ def generate_ticket_pdf(
         c = canvas.Canvas(pdf_path, pagesize=A4)
         width, height = A4
         
-        # === PREMIUM BLACK BACKGROUND ===
+        # === MODERN DARK BACKGROUND ===
         c.setFillColor(colors.HexColor(BLACK))
         c.rect(0, 0, width, height, fill=1, stroke=0)
         
-        # === GOLDEN BORDER ===
-        c.setStrokeColor(colors.HexColor(GOLDEN))
-        c.setLineWidth(4)
-        c.rect(15, 15, width - 30, height - 30, stroke=1, fill=0)
+        # === HEADER SECTION ===
+        header_y = height - 50
+        header_height = 120
         
-        # === LUXURY HEADER WITH LOGO ===
-        header_height = 100
-        c.setFillColor(colors.HexColor(BLACK))
-        c.rect(20, height - header_height - 15, width - 40, header_height, fill=1, stroke=0)
+        # Subtle top accent line
+        c.setStrokeColor(colors.HexColor(ACCENT_GOLD))
+        c.setLineWidth(3)
+        c.line(0, height, width, height)
         
-        # Golden accent line in header
-        c.setStrokeColor(colors.HexColor(GOLDEN))
-        c.setLineWidth(2)
-        c.line(20, height - header_height - 10, width - 20, height - header_height - 10)
+        # Header background
+        c.setFillColor(colors.HexColor(DARK_BG))
+        c.rect(0, header_y - header_height, width, header_height, fill=1, stroke=0)
         
-        # Add logo with golden border
-        if os.path.exists(LOGO_PATH):
+        # Logo and branding
+        logo_size = 60
+        logo_x = 50
+        logo_y = header_y - 40
+        
+        if LOGO_PATH and os.path.exists(LOGO_PATH):
             try:
-                # Golden circle behind logo
-                c.setFillColor(colors.HexColor(GOLDEN))
-                c.circle(70, height - 70, 35, fill=1, stroke=0)
-                
-                # Logo
-                c.drawImage(LOGO_PATH, 50, height - 90, width=40, height=40, preserveAspectRatio=True, mask='auto')
+                c.drawImage(LOGO_PATH, logo_x, logo_y - logo_size/2, width=logo_size, height=logo_size, preserveAspectRatio=True, mask='auto')
             except Exception as e:
                 logger.warning(f"Could not load logo: {e}")
         
-        # Header text with golden and red accents
+        # Brand name
         c.setFillColor(colors.HexColor(WHITE))
-        c.setFont("Helvetica-Bold", 28)
-        c.drawString(120, height - 60, "CineVerse")
+        c.setFont("Helvetica-Bold", 32)
+        brand_x = logo_x + logo_size + 20
+        c.drawString(brand_x, logo_y + 10, "CineVerse")
         
-        c.setFillColor(colors.HexColor(GOLDEN))
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(120, height - 85, "PREMIUM CINEMA EXPERIENCE")
+        # Tagline
+        c.setFillColor(colors.HexColor(GRAY_MEDIUM))
+        c.setFont("Helvetica", 12)
+        c.drawString(brand_x, logo_y - 10, "Premium Cinema Experience")
         
-        # Booking ID in golden
-        c.setFillColor(colors.HexColor(GOLDEN))
-        c.setFont("Helvetica-Bold", 14)
-        c.drawRightString(width - 40, height - 60, f"#{booking_id}")
-        c.setFont("Helvetica", 10)
-        c.drawRightString(width - 40, height - 75, "BOOKING REFERENCE")
+        # Booking ID (top right)
+        c.setFillColor(colors.HexColor(ACCENT_GOLD))
+        c.setFont("Helvetica-Bold", 18)
+        c.drawRightString(width - 50, logo_y + 10, f"#{booking_id}")
+        c.setFillColor(colors.HexColor(GRAY_MEDIUM))
+        c.setFont("Helvetica", 9)
+        c.drawRightString(width - 50, logo_y - 5, "BOOKING ID")
         
-        # === MOVIE TITLE SECTION - RED ACCENT ===
-        y = height - 140
+        # === MOVIE TITLE SECTION ===
+        y = header_y - header_height - 30
         
-        # Red background for movie title
-        c.setFillColor(colors.HexColor(RED))
-        c.roundRect(30, y - 45, width - 60, 45, 10, fill=1, stroke=0)
+        # Movie title with accent background
+        c.setFillColor(colors.HexColor(ACCENT_GOLD))
+        title_rect_height = 50
+        c.roundRect(50, y - title_rect_height, width - 100, title_rect_height, 8, fill=1, stroke=0)
         
-        # Movie title in white
-        c.setFillColor(colors.HexColor(WHITE))
-        c.setFont("Helvetica-Bold", 20)
+        c.setFillColor(colors.HexColor(BLACK))
+        c.setFont("Helvetica-Bold", 24)
         c.drawCentredString(width/2, y - 30, movie_title.upper())
         
-        y -= 70
+        y -= title_rect_height + 40
         
-        # === PREMIUM INFO CARDS ===
-        card_width = (width - 80) / 2
-        card_height = 90
+        # === INFO CARDS SECTION ===
+        card_width = (width - 150) / 2
+        card_height = 100
+        card_spacing = 30
         
-        # Left card - Theatre & Showtime (Golden Theme)
-        c.setFillColor(colors.HexColor(DARK_GRAY))
-        c.roundRect(30, y - card_height, card_width, card_height, 8, fill=1, stroke=1)
-        c.setStrokeColor(colors.HexColor(GOLDEN))
+        # Left card - Theatre & Showtime
+        card_x = 50
+        c.setFillColor(colors.HexColor(DARK_BG))
+        c.roundRect(card_x, y - card_height, card_width, card_height, 10, fill=1, stroke=1)
+        c.setStrokeColor(colors.HexColor(GRAY_DARK))
+        c.setLineWidth(1)
         
-        c.setFillColor(colors.HexColor(GOLDEN))
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(40, y - 20, "🎭 THEATRE")
-        c.setFillColor(colors.HexColor(WHITE))
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(40, y - 38, theatre_name)
-        
-        c.setFillColor(colors.HexColor(GOLDEN))
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(40, y - 58, "🕐 SHOWTIME")
-        c.setFillColor(colors.HexColor(WHITE))
-        c.setFont("Helvetica", 12)
-        c.drawString(40, y - 75, showtime)
-        
-        # Right card - Seats & Amount (Red Theme)
-        c.setFillColor(colors.HexColor(DARK_GRAY))
-        c.roundRect(50 + card_width, y - card_height, card_width, card_height, 8, fill=1, stroke=1)
-        c.setStrokeColor(colors.HexColor(RED))
-        
-        c.setFillColor(colors.HexColor(RED))
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(60 + card_width, y - 20, "💺 SEATS")
+        # Card content
+        c.setFillColor(colors.HexColor(ACCENT_GOLD))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(card_x + 15, y - 20, "THEATRE")
         c.setFillColor(colors.HexColor(WHITE))
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(60 + card_width, y - 40, seats)
+        c.drawString(card_x + 15, y - 42, theatre_name)
         
-        c.setFillColor(colors.HexColor(RED))
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(60 + card_width, y - 60, "💰 AMOUNT PAID")
-        c.setFillColor(colors.HexColor(GOLDEN))
-        c.setFont("Helvetica-Bold", 15)
-        c.drawString(60 + card_width, y - 78, f"₹{amount:.2f}")
+        c.setFillColor(colors.HexColor(ACCENT_GOLD))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(card_x + 15, y - 60, "SHOWTIME")
+        c.setFillColor(colors.HexColor(WHITE))
+        c.setFont("Helvetica", 13)
+        c.drawString(card_x + 15, y - 80, showtime)
         
-        y -= 120
+        # Right card - Seats & Amount
+        card_x_right = card_x + card_width + card_spacing
+        c.setFillColor(colors.HexColor(DARK_BG))
+        c.roundRect(card_x_right, y - card_height, card_width, card_height, 10, fill=1, stroke=1)
+        c.setStrokeColor(colors.HexColor(GRAY_DARK))
+        c.setLineWidth(1)
+        
+        # Card content
+        c.setFillColor(colors.HexColor(ACCENT_GOLD))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(card_x_right + 15, y - 20, "SEATS")
+        c.setFillColor(colors.HexColor(WHITE))
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(card_x_right + 15, y - 42, seats)
+        
+        c.setFillColor(colors.HexColor(ACCENT_GOLD))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(card_x_right + 15, y - 60, "AMOUNT PAID")
+        c.setFillColor(colors.HexColor(ACCENT_GOLD))
+        c.setFont("Helvetica-Bold", 20)
+        c.drawString(card_x_right + 15, y - 85, f"₹{amount:.2f}")
+        
+        y -= card_height + 40
         
         # === BOOKING DETAILS SECTION ===
-        c.setFillColor(colors.HexColor(GOLDEN))
-        c.setFont("Helvetica-Bold", 18)
-        c.drawString(30, y, "Booking Details")
+        c.setFillColor(colors.HexColor(WHITE))
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(50, y, "Booking Details")
         
-        # Golden underline
-        c.setStrokeColor(colors.HexColor(GOLDEN))
-        c.setLineWidth(1)
-        c.line(30, y - 5, 200, y - 5)
+        # Subtle underline
+        c.setStrokeColor(colors.HexColor(ACCENT_GOLD))
+        c.setLineWidth(2)
+        c.line(50, y - 8, 250, y - 8)
         
-        y -= 30
+        y -= 35
         
-        # Booking details table with golden accents
-        data = [
-            ["🎯 Customer Email:", user_email],
-            ["📅 Booking Date:", datetime.now().strftime("%d %b %Y, %I:%M %p")],
-            ["🎬 Showtime ID:", str(showtime_id)],
-            ["✅ Ticket Status:", "CONFIRMED"]
+        # Booking details in clean table format
+        details_data = [
+            ["Customer Email", user_email],
+            ["Booking Date", datetime.now().strftime("%d %b %Y, %I:%M %p")],
+            ["Showtime ID", str(showtime_id)],
+            ["Status", "CONFIRMED"]
         ]
         
-        table = Table(data, colWidths=[150, 300])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor(DARK_GRAY)),
-            ('BACKGROUND', (1, 0), (1, -1), colors.HexColor("#2a2a2a")),
-            ('FONT', (0, 0), (0, -1), 'Helvetica-Bold'),
+        detail_table = Table(details_data, colWidths=[140, 350])
+        detail_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor(DARK_BG)),
+            ('BACKGROUND', (1, 0), (1, -1), colors.HexColor(DARK_BG)),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor(GRAY_MEDIUM)),
+            ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor(WHITE)),
+            ('FONT', (0, 0), (0, -1), 'Helvetica'),
             ('FONT', (1, 0), (1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor(GOLDEN)),
-            ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor(WHITE)),
             ('ALIGN', (0, 0), (0, -1), 'LEFT'),
             ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 12),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-            ('TOPPADDING', (0, 0), (-1, -1), 10),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor(GOLDEN)),
+            ('LEFTPADDING', (0, 0), (-1, -1), 15),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 15),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(GRAY_DARK)),
         ]))
-        table.wrapOn(c, width, height)
-        table.drawOn(c, 30, y - 100)
+        detail_table.wrapOn(c, width, height)
+        detail_table.drawOn(c, 50, y - 80)
         
         # === QR CODE SECTION ===
         qr_data = {
@@ -252,118 +267,69 @@ def generate_ticket_pdf(
         }
         qr_path = generate_qr_code(qr_data)
         
-        # QR code container with golden border
-        qr_y = y - 280
-        c.setFillColor(colors.HexColor(DARK_GRAY))
-        c.roundRect(width - 200, qr_y, 160, 180, 10, fill=1, stroke=1)
-        c.setStrokeColor(colors.HexColor(GOLDEN))
+        # QR code positioned on the right
+        qr_size = 140
+        qr_x = width - qr_size - 50
+        qr_y = y - 80
+        
+        # QR code container
+        c.setFillColor(colors.HexColor(DARK_BG))
+        c.roundRect(qr_x - 10, qr_y - qr_size - 30, qr_size + 20, qr_size + 50, 10, fill=1, stroke=1)
+        c.setStrokeColor(colors.HexColor(ACCENT_GOLD))
+        c.setLineWidth(2)
         
         # Draw QR code
-        c.drawImage(qr_path, width - 180, qr_y + 50, width=120, height=120, preserveAspectRatio=True)
+        c.drawImage(qr_path, qr_x, qr_y - qr_size, width=qr_size, height=qr_size, preserveAspectRatio=True)
         
-        c.setFillColor(colors.HexColor(GOLDEN))
-        c.setFont("Helvetica-Bold", 12)
-        c.drawCentredString(width - 120, qr_y + 30, "DIGITAL TICKET")
-        c.setFont("Helvetica", 9)
+        # QR code label
+        c.setFillColor(colors.HexColor(ACCENT_GOLD))
+        c.setFont("Helvetica-Bold", 11)
+        c.drawCentredString(qr_x + qr_size/2, qr_y - qr_size - 15, "DIGITAL TICKET")
+        c.setFillColor(colors.HexColor(GRAY_MEDIUM))
+        c.setFont("Helvetica", 8)
+        c.drawCentredString(qr_x + qr_size/2, qr_y - qr_size - 5, "Scan for verification")
+        
+        # === INSTRUCTIONS SECTION ===
+        instructions_y = y - 200
+        
         c.setFillColor(colors.HexColor(WHITE))
-        c.drawCentredString(width - 120, qr_y + 15, "Scan for verification")
-        
-        # === PREMIUM INSTRUCTIONS SECTION ===
-        instructions_y = qr_y - 40
-        
-        c.setFillColor(colors.HexColor(RED))
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(30, instructions_y, "🎬 Premium Experience Guidelines")
-        
-        instructions_y -= 30
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(50, instructions_y, "Important Information")
         
         instructions = [
-            "🌟 Arrive 20 minutes before showtime for premium seating",
-            "📱 Present this digital ticket for scanning",
-            "🆔 Valid ID proof required for verification",
-            "🍿 Gourmet snacks available at our premium counters",
-            "🤫 Maintain the luxury cinema ambiance",
-            "📵 Silent mode for uninterrupted viewing",
-            "👑 Premium seating with enhanced comfort",
-            "💎 Experience the ultimate in cinema luxury"
+            "• Arrive 15 minutes before showtime",
+            "• Present this ticket at the entrance",
+            "• Valid ID required for verification",
+            "• Seats are non-refundable and non-transferable"
         ]
         
-        c.setFillColor(colors.HexColor(WHITE))
+        c.setFillColor(colors.HexColor(GRAY_LIGHT))
         c.setFont("Helvetica", 10)
-        
         for i, instruction in enumerate(instructions):
-            # Alternate colors for visual interest
-            if i % 2 == 0:
-                c.setFillColor(colors.HexColor(WHITE))
-            else:
-                c.setFillColor(colors.HexColor(LIGHT_GOLD))
-            c.drawString(40, instructions_y, instruction)
-            instructions_y -= 18
+            c.drawString(50, instructions_y - 25 - (i * 18), instruction)
         
-        # === LUXURY FOOTER ===
-        footer_y = 70
+        # === FOOTER ===
+        footer_y = 50
         
-        # Footer background with golden top border
-        c.setStrokeColor(colors.HexColor(GOLDEN))
-        c.setLineWidth(2)
-        c.line(20, footer_y + 40, width - 20, footer_y + 40)
-        
-        c.setFillColor(colors.HexColor(BLACK))
-        c.rect(20, 20, width - 40, footer_y, fill=1, stroke=0)
+        # Footer separator
+        c.setStrokeColor(colors.HexColor(GRAY_DARK))
+        c.setLineWidth(1)
+        c.line(50, footer_y + 30, width - 50, footer_y + 30)
         
         # Footer text
-        c.setFillColor(colors.HexColor(WHITE))
-        c.setFont("Helvetica-Bold", 10)
-        c.drawCentredString(width/2, 45, "CineVerse Premium Cinema")
-        c.setFont("Helvetica", 8)
-        c.drawCentredString(width/2, 35, "For exclusive support: vip@cineverse.com | +91-9876543210")
-        c.drawCentredString(width/2, 25, f"Generated on: {datetime.now().strftime('%d %b %Y at %I:%M %p')}")
-        
-        # Premium security watermark
-        c.setFillColor(colors.HexColor(GOLDEN))
-        c.setFont("Helvetica-Bold", 36)
-        c.setFillAlpha(0.05)  # Very transparent
-        c.rotate(45)
-        c.drawString(150, 100, f"PREMIUM #{booking_id}")
-        c.setFillAlpha(1.0)
-        c.rotate(-45)
-        
-        # Luxury corner decorations
-        c.setStrokeColor(colors.HexColor(GOLDEN))
-        c.setLineWidth(2)
-        corner_size = 20
-        
-        # Function to draw luxury corner
-        def draw_luxury_corner(x, y, horizontal, vertical):
-            c.line(x, y, x + corner_size * horizontal, y)
-            c.line(x, y, x, y + corner_size * vertical)
-            # Add small decorative dots
-            c.setFillColor(colors.HexColor(RED))
-            c.circle(x + 8 * horizontal, y + 8 * vertical, 2, fill=1, stroke=0)
-        
-        # Draw corners
-        draw_luxury_corner(20, height - 20, 1, -1)  # Top-left
-        draw_luxury_corner(width - 20, height - 20, -1, -1)  # Top-right
-        draw_luxury_corner(20, 20, 1, 1)  # Bottom-left
-        draw_luxury_corner(width - 20, 20, -1, 1)  # Bottom-right
-        
-        # Golden decorative elements along borders
-        c.setStrokeColor(colors.HexColor(GOLDEN))
-        c.setLineWidth(1)
-        for i in range(1, 6):
-            # Top border decorations
-            c.line(50 * i, height - 20, 50 * i + 10, height - 20)
-            # Bottom border decorations
-            c.line(50 * i, 20, 50 * i + 10, 20)
+        c.setFillColor(colors.HexColor(GRAY_MEDIUM))
+        c.setFont("Helvetica", 9)
+        c.drawCentredString(width/2, footer_y + 15, "CineVerse Premium Cinema")
+        c.drawCentredString(width/2, footer_y + 5, f"Generated on {datetime.now().strftime('%d %b %Y at %I:%M %p')}")
         
         # Save PDF
         c.save()
         
-        logger.info(f"Generated luxury ticket PDF: {pdf_path}")
+        logger.info(f"Generated modern ticket PDF: {pdf_path}")
         return pdf_path
         
     except Exception as e:
-        logger.error(f"Error generating PDF: {e}")
+        logger.error(f"Error generating PDF: {e}", exc_info=True)
         raise
 
 

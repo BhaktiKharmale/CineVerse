@@ -42,7 +42,7 @@ const PaymentSuccess: React.FC = () => {
     if (!bookingId) {
       console.warn("[PaymentSuccess] Missing bookingId in URL/state", { successState, bookingIdParam });
       toast.error("Booking not found.");
-      navigate("/movies", { replace: true });
+      navigate("/home", { replace: true });
     }
   }, [bookingId, navigate, successState, bookingIdParam]);
 
@@ -189,10 +189,10 @@ const PaymentSuccess: React.FC = () => {
             <button
               type="button"
               className="inline-flex items-center justify-center gap-2 rounded-full border border-[#2a2a3a] px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-gray-300 transition hover:bg-[#1a1a24]"
-              onClick={() => navigate("/movies")}
+              onClick={() => navigate("/home")}
             >
               <Home size={18} />
-              Back to Movies
+              Back to Home
             </button>
           </div>
         </div>

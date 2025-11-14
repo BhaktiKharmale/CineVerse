@@ -65,6 +65,10 @@ const routes: RouteObject[] = [
         path: "checkout", 
         element: <CheckoutPage /> 
       },
+      { 
+        path: "booking/checkout/:orderId", 
+        element: <CheckoutPage /> 
+      },
       
       { path: "payment/upi-status", element: <UPIStatus /> },
       { path: "booking/:bookingId/success", element: <PaymentSuccess /> },

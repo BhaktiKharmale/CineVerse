@@ -148,7 +148,17 @@ export const paymentService = {
         const orderId = data.orderId || data.order_id || data.id;
         let amountNum = 0;
         if (typeof data.amount === "number") {
-          amountNum = data.amount >= 1000 ? data.amount / 100 : data.amount;
+          // Backend returns amount in PAISE (smallest currency unit)
+          // Convert paise to rupees by dividing by 100
+          // Check if it's likely in paise (>= 100) or already in rupees (< 100)
+          // Razorpay and most payment gateways use paise, so amounts are typically >= 100
+          if (data.amount >= 100) {
+            // Likely in paise, convert to rupees
+            amountNum = data.amount / 100;
+          } else {
+            // Already in rupees (for dev/fallback scenarios)
+            amountNum = data.amount;
+          }
         }
         const gatewayProvider = (data.gateway && data.gateway.provider) || (data.provider || "razorpay");
         const gwPayload: Record<string, unknown> = data.gateway?.payload || data.payload || data.notes || {};
