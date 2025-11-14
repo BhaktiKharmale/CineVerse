@@ -1,0 +1,28 @@
+{
+    "python.analysis.exclude": [
+        "**/venv/**",
+        "**/.venv/**"
+    ],
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportCallIssue": "none",
+        "reportArgumentType": "none",
+        "reportAttributeAccessIssue": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportMissingImports": "none"
+    },
+    "python.analysis.useLibraryCodeForTypes": true,
+    "cursorpyright.analysis.diagnosticSeverityOverrides": {
+        "reportCallIssue": "none",
+        "reportArgumentType": "none",
+        "reportAttributeAccessIssue": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportMissingImports": "none"
+    },
+    "cursorpyright.analysis.exclude": [
+        "**/venv/**",
+        "**/.venv/**"
+    ],
+    "cursorpyright.analysis.typeCheckingMode": "basic",
+    "cursorpyright.analysis.useLibraryCodeForTypes": true
+}

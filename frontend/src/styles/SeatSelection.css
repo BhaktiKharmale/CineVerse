@@ -1,0 +1,157 @@
+/* ===== Dark PVR-Style Seat Selection (CineVerse) ===== */
+:root{
+  --bg:#0b0b0f;
+  --band:#0f0f14;
+  --panel:#111117;
+  --panel2:#15151a;
+  --border:#23232b;
+  --muted:#9ca3af;
+  --muted2:#a3a8b6;
+  --text:#e7e9ee;
+  --heading:#fff;
+  --accent:#22c55e;       /* green */
+  --accent-strong:#16a34a;
+  --warn:#f6c800;         /* yellow chip */
+}
+
+/* page */
+.seat-selection-page{
+  min-height:100vh;width:100%;
+  background:
+    radial-gradient(1200px 800px at 50% -10%, rgba(246,200,0,.06), transparent 40%),
+    var(--bg) !important;
+  color:var(--text);
+  text-align:left;
+  padding:0 0 7.5rem;
+  position:relative;
+  font-family:inherit;
+}
+
+/* top band */
+.seat-selection-page::before{
+  content:"";position:absolute;inset:0 0 auto 0;height:84px;
+  background:linear-gradient(180deg,var(--band),var(--bg));
+  border-bottom:1px solid var(--border);z-index:0;
+}
+
+/* header */
+.seat-selection-header{
+  max-width:1200px;margin:0 auto;padding:18px 16px 8px;
+  position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;
+}
+.title{ margin:0;font-size:24px;font-weight:900;color:var(--heading); }
+.movie-info{ margin-top:4px;color:var(--muted);font-size:14px; }
+
+/* timer chip */
+.timer-chip{
+  background:rgba(246,200,0,.12);
+  border:1px solid rgba(246,200,0,.35);
+  color:#fff;padding:8px 12px;border-radius:999px;font-size:13px;
+  box-shadow:0 0 0 3px rgba(246,200,0,.06);
+}
+
+/* layout: left + right */
+.seat-layout{
+  max-width:1200px;margin:0 auto;padding:0 16px;position:relative;z-index:1;
+  display:grid;grid-template-columns:1fr 360px;gap:20px;
+}
+@media (max-width:1100px){ .seat-layout{ grid-template-columns:1fr; } }
+
+/* left/map */
+.screen-section{ margin:6px 0 8px; }
+.screen-curve{
+  height:3px;background:linear-gradient(90deg,#d34a4a,#ef5350);box-shadow:none;opacity:.85;border-radius:999px;
+}
+.screen-label{ margin-top:6px;font-size:11px;letter-spacing:.25rem;color:#9aa1af;text-align:center; }
+
+/* legend */
+.legend{ display:flex;align-items:center;gap:18px 22px;flex-wrap:wrap;color:#9aa1af;font-size:13px; }
+.legend-item{ display:inline-flex;align-items:center;gap:8px; }
+.legend-box{
+  width:14px;height:14px;border-radius:3px;background:#171922;border:1px solid #2a2d3a;
+}
+.legend-box.selected{ background:var(--accent); border-color:var(--accent); }
+.legend-box.booked{ background:#20222c; border-color:#2b2e3b; }
+.legend-box.locked{ background:#1a1c25; border-color:#3a3e4e; }
+
+/* grid card */
+.seat-grid-container{
+  background:#121219;border:1px solid #262834;border-radius:14px;
+  box-shadow:0 4px 12px rgba(0,0,0,.25);padding:12px 14px;
+}
+
+/* rows & seats */
+.seat-row{ display:flex;align-items:center;gap:10px;padding:2px 0; }
+.row-label{ width:22px;text-align:right;color:#8891a0;font-weight:700;font-size:13px; }
+.seat-grid{ display:grid;grid-template-columns:repeat(18,30px);gap:6px; }
+
+.seat{
+  width:30px;height:30px;border-radius:6px;
+  background:#171922;border:1px solid #2a2d3a;
+  color:#cfd3dc;font-size:12px;font-weight:700;cursor:pointer;
+  box-shadow:none;transform:none;transition:transform .12s, background .12s, border-color .12s, color .12s;
+}
+.seat:hover:not(.booked):not(.locked):not(.selected){
+  background:#1b1e28;border-color:#3a7f55;transform:translateY(-1px);
+}
+.seat.selected{
+  background:var(--accent);border-color:var(--accent);color:#0c0f0d;box-shadow:none;
+}
+.seat.booked{ background:#20222c;border-color:#2b2e3b;color:#7e8798;cursor:not-allowed; }
+.seat.locked{ background:#1a1c25;border:1px dashed #3a3e4e;color:#9aa1af;cursor:not-allowed; }
+
+/* right summary */
+.seat-summary{
+  background:linear-gradient(180deg,var(--panel),var(--panel2));
+  border:1px solid var(--border);border-radius:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);padding:14px;min-height:220px;
+}
+.summary-header{ font-weight:900;font-size:14px;color:#fff;margin-bottom:10px; }
+.summary-card{
+  display:flex;gap:10px;align-items:flex-start;background:#121219;
+  border:1px solid var(--border);border-radius:12px;padding:10px;
+}
+.summary-meta{ font-size:12px;color:var(--muted2);line-height:1.35; }
+.summary-empty{ text-align:center;color:#8b93a2;padding:28px 10px;font-weight:700; }
+
+/* error */
+.inline-error-banner{
+  background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);
+  color:#fecaca;border-radius:12px;padding:14px 16px;margin:12px 0;
+}
+
+/* sticky footer */
+.bottom-bar{
+  position:fixed;bottom:0;left:0;right:0;z-index:20;
+  background:#0e0f14;border-top:1px solid #22252f;
+  display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:16px;padding:14px 20px;
+  box-shadow:0 -4px 12px rgba(0,0,0,.35);
+}
+.summary{ font-size:14px;font-weight:700;color:var(--text); }
+.total-section{ font-size:18px;font-weight:900;color:#fff;display:flex;align-items:baseline;gap:6px; }
+.proceed-btn{
+  background:var(--accent);border:1px solid var(--accent-strong);color:#0c0f0d;border-radius:999px;
+  padding:12px 18px;font-size:14px;font-weight:900;letter-spacing:.01em;box-shadow:none;
+  transition:transform .12s, background .12s, border-color .12s;
+}
+.proceed-btn:hover:not(:disabled){ background:var(--accent-strong);transform:translateY(-1px); }
+.proceed-btn:disabled{ opacity:.5;cursor:not-allowed; }
+
+/* Ensure selected seats you own still look selected even if status is 'locked' */
+.seat.locked.selected {
+  background: linear-gradient(90deg, #ff6f91, #ff9671);
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(255, 122, 0, 0.6);
+  cursor: pointer;
+}
+/* If a seat is locked by you and selected, show the selected style */
+.seat.locked.selected {
+  background: linear-gradient(90deg, #ff6f91, #ff9671);
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(255, 122, 0, 0.6);
+  cursor: pointer;
+}

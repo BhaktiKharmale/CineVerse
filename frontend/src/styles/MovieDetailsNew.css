@@ -1,0 +1,592 @@
+/* ===============================================
+   CINEMATIC MOVIE DETAILS PAGE - Hero Style
+   =============================================== */
+
+.movie-details-page {
+  min-height: 100vh;
+  background: #0d0d0d;
+  color: #fff;
+  font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-x: hidden;
+}
+
+/* ===============================================
+   HERO SECTION (55-65vh)
+   =============================================== */
+
+.hero-section {
+  position: relative;
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  padding: 4rem 0;
+  overflow: hidden;
+}
+
+/* Background Image with Blur */
+.hero-background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  filter: blur(8px) brightness(0.5);
+  transform: scale(1.05);
+  z-index: 0;
+}
+
+/* Gradient Overlay */
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    rgba(13, 13, 13, 0.95) 0%,
+    rgba(13, 13, 13, 0.7) 40%,
+    rgba(13, 13, 13, 0.4) 60%,
+    rgba(13, 13, 13, 0.85) 100%
+  );
+  background: linear-gradient(
+    to bottom,
+    rgba(13, 13, 13, 0.3) 0%,
+    rgba(13, 13, 13, 0.85) 90%,
+    rgba(13, 13, 13, 1) 100%
+  );
+  z-index: 1;
+}
+
+/* Hero Content Container */
+.hero-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 3rem;
+}
+
+.container-wrapper {
+  display: flex;
+  gap: 3.5rem;
+  align-items: flex-start;
+  animation: fadeInUp 0.8s ease-out;
+}
+
+/* ===============================================
+   POSTER CARD
+   =============================================== */
+
+.poster-card {
+  position: relative;
+  flex-shrink: 0;
+  width: 320px;
+}
+
+.poster-image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.poster-image:hover {
+  transform: scale(1.02) translateY(-4px);
+  box-shadow: 
+    0 15px 50px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Trailer Badge Overlay */
+.trailer-badge {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  padding: 10px 20px;
+  border-radius: 25px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.trailer-badge:hover {
+  background: rgba(214, 31, 31, 0.9);
+  transform: translateX(-50%) scale(1.05);
+}
+
+.trailer-icon {
+  font-size: 14px;
+  color: #fff;
+}
+
+.trailer-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ===============================================
+   INFO PANEL
+   =============================================== */
+
+.info-panel {
+  flex: 1;
+  padding-top: 1rem;
+}
+
+.movie-title-hero {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+  color: #fff;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Metadata Row (Language, Runtime, Year, Age Rating) */
+.metadata-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+.badge:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.badge-language {
+  background: rgba(255, 122, 0, 0.2);
+  border-color: rgba(255, 122, 0, 0.4);
+  color: #ffbb00;
+}
+
+.badge-runtime {
+  background: rgba(100, 100, 255, 0.15);
+  border-color: rgba(100, 100, 255, 0.3);
+}
+
+.badge-release {
+  background: rgba(0, 200, 100, 0.15);
+  border-color: rgba(0, 200, 100, 0.3);
+}
+
+.badge-age {
+  background: rgba(214, 31, 31, 0.2);
+  border-color: rgba(214, 31, 31, 0.4);
+  color: #ff6b6b;
+  font-weight: 700;
+}
+
+.badge-certification {
+  background: rgba(246, 200, 0, 0.15);
+  border-color: rgba(246, 200, 0, 0.3);
+  color: #f6c800;
+  font-weight: 700;
+}
+
+.badge-rating {
+  background: rgba(0, 200, 100, 0.15);
+  border-color: rgba(0, 200, 100, 0.3);
+  color: #00c864;
+}
+
+.badge-icon {
+  font-size: 16px;
+}
+
+/* Genres Row */
+.genres-row,
+.genre-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 1.5rem;
+}
+
+.genre-chip,
+.genre-tag {
+  padding: 6px 14px;
+  background: rgba(150, 150, 150, 0.15);
+  border: 1px solid rgba(200, 200, 200, 0.2);
+  border-radius: 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #d0d0d0;
+  transition: all 0.2s ease;
+}
+
+.genre-chip:hover,
+.genre-tag:hover {
+  background: rgba(150, 150, 150, 0.25);
+  border-color: rgba(200, 200, 200, 0.4);
+  transform: translateY(-2px);
+}
+
+/* ===============================================
+   RATING SECTION
+   =============================================== */
+
+.rating-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 2rem;
+  padding: 16px 0;
+}
+
+.rating-stars {
+  display: flex;
+  gap: 4px;
+}
+
+.rating-stars span {
+  font-size: 28px;
+  transition: transform 0.2s ease;
+}
+
+.star-filled {
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.star-empty {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.rating-stars span:hover {
+  transform: scale(1.15);
+}
+
+.rating-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rating-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.rating-votes {
+  font-size: 13px;
+  color: #888;
+}
+
+/* ===============================================
+   BOOK TICKETS BUTTON
+   =============================================== */
+
+.book-tickets-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #D61F1F 0%, #FF7A00 100%);
+  color: #fff;
+  padding: 16px 40px;
+  border: none;
+  border-radius: 30px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 24px rgba(214, 31, 31, 0.4);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.book-tickets-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 12px 32px rgba(214, 31, 31, 0.6);
+}
+
+.book-tickets-btn:active {
+  transform: translateY(-1px) scale(1.01);
+}
+
+.btn-icon {
+  font-size: 20px;
+}
+
+/* ===============================================
+   ABOUT SECTION
+   =============================================== */
+
+.about-section {
+  background: linear-gradient(to bottom, #0d0d0d 0%, #1a1a1a 50%, #0d0d0d 100%);
+  padding: 5rem 3rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.about-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.about-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  color: #fff;
+  position: relative;
+  display: inline-block;
+}
+
+.about-title::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  width: 60px;
+  height: 4px;
+  background: linear-gradient(90deg, #D61F1F, #FF7A00);
+  border-radius: 2px;
+}
+
+.about-description {
+  max-width: 900px;
+}
+
+.about-paragraph {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #c0c0c0;
+  margin-bottom: 1.5rem;
+  text-align: justify;
+}
+
+.about-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+/* ===============================================
+   BOOKING MODAL
+   =============================================== */
+
+.booking-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.booking-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+}
+
+.booking-content {
+  position: relative;
+  background: #1a1a1a;
+  border-radius: 20px;
+  padding: 3rem;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.close-booking {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.close-booking:hover {
+  background: rgba(214, 31, 31, 0.8);
+  transform: rotate(90deg);
+}
+
+/* ===============================================
+   ANIMATIONS
+   =============================================== */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* ===============================================
+   RESPONSIVE DESIGN
+   =============================================== */
+
+@media (max-width: 1024px) {
+  .movie-title-hero {
+    font-size: 2.8rem;
+  }
+
+  .poster-card {
+    width: 280px;
+  }
+
+  .hero-content {
+    padding: 0 2rem;
+  }
+
+  .container-wrapper {
+    gap: 2.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .container-wrapper {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .poster-card {
+    width: 260px;
+  }
+
+  .movie-title-hero {
+    font-size: 2.2rem;
+  }
+
+  .metadata-row {
+    justify-content: center;
+  }
+
+  .genres-row {
+    justify-content: center;
+  }
+
+  .rating-section {
+    justify-content: center;
+  }
+
+  .about-section {
+    padding: 3rem 1.5rem;
+  }
+
+  .about-title {
+    font-size: 2rem;
+  }
+
+  .about-paragraph {
+    text-align: left;
+  }
+
+  .hero-section {
+    min-height: auto;
+    padding: 3rem 0;
+  }
+
+  .booking-content {
+    padding: 2rem 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .poster-card {
+    width: 220px;
+  }
+
+  .movie-title-hero {
+    font-size: 1.8rem;
+  }
+
+  .badge {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .book-tickets-btn {
+    padding: 14px 30px;
+    font-size: 16px;
+  }
+
+  .hero-content {
+    padding: 0 1rem;
+  }
+
+  .about-section {
+    padding: 2.5rem 1rem;
+  }
+
+  .rating-stars span {
+    font-size: 24px;
+  }
+}
+
+/* ===============================================
+   ACCESSIBILITY
+   =============================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus styles for keyboard navigation */
+.book-tickets-btn:focus-visible,
+.close-booking:focus-visible,
+.trailer-badge:focus-visible {
+  outline: 3px solid #FF7A00;
+  outline-offset: 3px;
+}
+

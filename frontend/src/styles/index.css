@@ -1,0 +1,221 @@
+/* src/styles/index.css */
+/* Tailwind entry directives (processed by PostCSS/Tailwind) */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom utilities */
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ----------------------------- */
+/* Global / Theme                */
+/* ----------------------------- */
+:root {
+  --accent1: #D61F1F;
+  --accent2: #FF7A00;
+  --gold: #FFD700;
+  --bg: #0d0d0d;
+  --card: #111111;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: #fff;
+  font-family: "Poppins", system-ui, sans-serif;
+}
+
+/* ----------------------------- */
+/* Splash logo (center)          */
+/* ----------------------------- */
+.splash-logo {
+  width: 130px;
+  height: 130px;
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 0 30px rgba(255, 122, 0, 0.75);
+  animation: pulseGlow 2.2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 25px rgba(255, 122, 0, 0.7);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 40px rgba(255, 200, 100, 0.95);
+  }
+}
+
+/* shimmer line overlay used on logo (splash & navbar) */
+.logo-shimmer {
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 120%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
+  transform: skewX(-20deg);
+  animation: shimmerSlide 2.6s infinite;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+@keyframes shimmerSlide {
+  0% { left: -120%; }
+  100% { left: 120%; }
+}
+
+/* ----------------------------- */
+/* small logo used in navbar     */
+/* ----------------------------- */
+.logo-small-wrapper, .nav-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+  background: #0f0f0f;
+  box-shadow: 0 0 10px rgba(255,122,0,0.45);
+}
+.logo-small {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* subtle shimmer animation for small logo */
+@keyframes logoShimmer {
+  0% { filter: brightness(0.95) drop-shadow(0 0 3px rgba(255,122,0,0.3)); }
+  50% { filter: brightness(1.4) drop-shadow(0 0 10px rgba(255,122,0,0.6)); }
+  100% { filter: brightness(0.95) drop-shadow(0 0 3px rgba(255,122,0,0.3)); }
+}
+.logo-small {
+  animation: logoShimmer 3s infinite ease-in-out;
+}
+
+/* ----------------------------- */
+/* Home enter animation (slide-up) */
+/* ----------------------------- */
+@keyframes homeEnter {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-homeEnter {
+  animation: homeEnter 900ms ease-out forwards;
+}
+
+/* ----------------------------- */
+/* Cards + grid aesthetics       */
+/* ----------------------------- */
+.movie-card {
+  transition: transform 300ms ease, box-shadow 300ms ease, border-color 300ms ease;
+}
+.movie-card img {
+  transition: transform 400ms ease;
+}
+.movie-card:hover img { transform: scale(1.05); }
+.movie-card:hover { transform: translateY(-4px) scale(1.02); }
+
+/* quick responsiveness adjustments */
+@media (max-width: 640px) {
+  .movie-card img { height: 220px; }
+}
+
+/* Footer glow */
+footer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
+  opacity: 0.8;
+}
+
+/* small utilities (used in many files) */
+.text-accent {
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* === Splash Logo Animation (Centered CineVerse Look) === */
+.splash-logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(255, 122, 0, 0.7);
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 25px rgba(255, 122, 0, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 45px rgba(255, 200, 100, 0.9);
+    transform: scale(1.05);
+  }
+}
+
+.splash-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 70%
+  );
+  animation: shimmerMove 2s infinite linear;
+  mix-blend-mode: overlay;
+}
+
+@keyframes shimmerMove {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 1s ease-out forwards;
+}
+
+@keyframes logoPulse {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 5px #ff7a00); }
+  50% { filter: brightness(1.5) drop-shadow(0 0 15px #ff7a00); }
+}
+.animate-logoPulse {
+  animation: logoPulse 3s infinite ease-in-out;
+}
+
+@keyframes titleGlow {
+  0%, 100% { text-shadow: 0 0 10px #D61F1F, 0 0 20px #FF7A00; }
+  50% { text-shadow: 0 0 25px #FF7A00, 0 0 40px #FFD700; }
+}
+.animate-titleGlow {
+  animation: titleGlow 2s infinite ease-in-out;
+}

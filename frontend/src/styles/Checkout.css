@@ -1,0 +1,130 @@
+.checkout-page {
+  background: #0f0f0f;
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 3rem 1.5rem;
+  animation: fadeInUp 0.6s ease;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.checkout-container {
+  background: #1a1a1a;
+  border-radius: 16px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 600px;
+  box-shadow: 0 0 30px rgba(255, 122, 0, 0.15);
+}
+
+/* Movie Summary */
+.movie-summary {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  border-bottom: 1px solid #333;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.poster {
+  width: 90px;
+  height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 0 10px rgba(255, 122, 0, 0.4);
+}
+
+.movie-details {
+  flex: 1;
+}
+
+.movie-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  background: linear-gradient(90deg, #ff0066, #ff7a00);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.movie-meta {
+  color: #bbb;
+  font-size: 0.9rem;
+  margin-top: 0.3rem;
+}
+
+/* Booking Summary */
+.section-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #ff7a00;
+}
+
+.summary-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  font-size: 1rem;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  color: #ccc;
+}
+
+.summary-row.total {
+  font-weight: 600;
+  border-top: 1px solid #333;
+  padding-top: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.highlight {
+  color: #ff7a00;
+}
+
+/* Button */
+.payment-action {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.proceed-btn {
+  background: linear-gradient(90deg, #ff0066, #ff7a00);
+  border: none;
+  color: #fff;
+  padding: 0.9rem 2rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.proceed-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(255, 122, 0, 0.6);
+}
+
+.back-btn {
+  background: transparent;
+  color: #ff7a00;
+  border: 1px solid #ff7a00;
+  padding: 0.7rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.back-btn:hover {
+  background: #ff7a00;
+  color: #fff;
+}

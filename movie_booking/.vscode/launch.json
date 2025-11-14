@@ -1,0 +1,52 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "▶ Run FastAPI (run_uvicorn.py) - debug (cwd = workspace root)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/run_uvicorn.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/movie_booking/movie_booking",
+        "SQLALCHEMY_DATABASE_URL": "sqlite:///./dev_local.db",
+        "DATABASE_URL": "sqlite:///./dev_local.db",
+        "REDIS_URL": "redis://localhost:6379/0",
+        "RAZORPAY_KEY_ID": "",
+        "RAZORPAY_KEY_SECRET": "",
+        "PAYMENT_GATEWAY": "fallback",
+        "PUBLIC_BASE_URL": "http://127.0.0.1:8000"
+      },
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "🐍 Run current Python file (debugpy) - with PYTHONPATH",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/movie_booking/movie_booking",
+        "SQLALCHEMY_DATABASE_URL": "sqlite:///./dev_local.db",
+        "DATABASE_URL": "sqlite:///./dev_local.db"
+      },
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "🔌 Attach to debugpy (manual attach)",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/movie_booking/movie_booking",
+          "remoteRoot": "/app"
+        }
+      ]
+    }
+  ]
+}

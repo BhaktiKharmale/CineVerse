@@ -1,0 +1,14 @@
+{
+    "standard.enable": false,
+    // Prevent VS Code from attempting to download JSON schemas from schemastore (offline/proxy-safe)
+    "json.schemaDownload.enable": false,
+    // Provide no external schemas so editor won't try to fetch them
+    "json.schemas": []
+    ,
+    // Allow Tailwind directives in workspace CSS files
+    "css.lint.unknownAtRules": "ignore",
+    "scss.lint.unknownAtRules": "ignore",
+    "less.lint.unknownAtRules": "ignore"
+}
+
+

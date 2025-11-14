@@ -1,0 +1,127 @@
+# app/main.py
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.database import models
+from app.database.database import Base, engine
+from contextlib import asynccontextmanager
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Lifespan events (startup/shutdown)  
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Redis init (non-fatal)
+    # inside lifespan in app/main.py (replace the Redis init block)
+    # Redis init (non-fatal)
+    try:
+        from app.core.redis import get_redis
+        # get_redis already performs a ping/test internally in our implementation
+        await get_redis()
+        logger.info("✓ Redis connected successfully")
+    except Exception as e:
+        logger.warning(f"⚠ Redis connection failed (seat locking may be disabled): {e}")
+
+    # AI agent info (non-fatal)
+    try:
+        from app.ai.config import AI_ENABLED, LLM_MODEL
+        if AI_ENABLED:
+            logger.info(f"✓ AI Agent enabled (Model: {LLM_MODEL})")
+        else:
+            logger.warning("⚠ AI Agent disabled (OPENAI_API_KEY not set)")
+    except Exception as e:
+        logger.warning(f"⚠ AI Agent initialization warning: {e}")
+
+    yield
+
+    # Shutdown: close redis (non-fatal)
+    try:
+        from app.core.redis import close_redis
+        await close_redis()
+        logger.info("✓ Redis connection closed")
+    except Exception as e:
+        logger.error(f"Error closing Redis: {e}")
+
+# Build FastAPI app
+fastapi_app = FastAPI(
+    title="Movie Booking API",
+    description="Backend APIs for Movie Booking System",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+# Ensure DB models/tables exist
+models.Base.metadata.create_all(bind=engine)
+
+# CORS
+ALLOWED_ORIGINS = [
+    "http://localhost:3001",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
+# --- Register routers under the same /api prefix the frontend expects ---
+# IMPORTANT: We mount every router with prefix="/api" here so front-end calls to /api/* resolve.
+
+from app.routers import superadmin_routes, admin_routes, user_routes, public_routes
+
+fastapi_app.include_router(superadmin_routes.router, prefix="/api")
+fastapi_app.include_router(admin_routes.router, prefix="/api")
+fastapi_app.include_router(user_routes.router, prefix="/api")
+
+# public_routes: if public_routes.py already defines router prefix "/api", this include will produce /api/api routes.
+# If you previously put prefix inside public_routes, remove it there and let main.py provide the "/api" prefix.
+fastapi_app.include_router(public_routes.router, prefix="/api")
+
+# Payment router — mount under /api too
+try:
+    from app.routers.payment_routes import router as payment_router
+    fastapi_app.include_router(payment_router, prefix="/api")
+    logger.info("✓ Payment routes registered at /api")
+except Exception as e:
+    logger.error(f"✗ Payment routes failed to register: {e}")
+
+# AI routes (no prefix change — they might be mounted at /ai in the router itself)
+try:
+    from app.ai.router import router as ai_router
+    fastapi_app.include_router(ai_router)
+    logger.info("✓ AI Agent routes registered at /ai (or as declared by router)")
+except Exception as e:
+    logger.error(f"✗ AI Agent routes failed to register: {e}")
+
+# Root and CORS-test endpoints
+@fastapi_app.get("/")
+def root():
+    return {"message": "🎬 CineVerse API is running successfully!"}
+
+@fastapi_app.get("/api/cors-test")
+def cors_test():
+    return {
+        "message": "CORS is working!",
+        "cors_origins": ALLOWED_ORIGINS,
+        "timestamp": __import__("datetime").datetime.now().isoformat(),
+    }
+
+# Socket.IO wrapping (last)
+try:
+    from app.ai.events import wrap_app_with_socketio, SOCKETIO_AVAILABLE
+    if SOCKETIO_AVAILABLE:
+        app = wrap_app_with_socketio(fastapi_app)
+        logger.info("✅ FastAPI app wrapped with Socket.IO")
+    else:
+        app = fastapi_app
+        logger.info("ℹ️ Socket.IO not available, running plain FastAPI")
+except Exception as e:
+    logger.warning(f"⚠ Failed to wrap app with Socket.IO: {e}")
+    app = fastapi_app
