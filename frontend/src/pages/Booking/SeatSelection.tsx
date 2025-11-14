@@ -732,6 +732,15 @@ const SeatSelection: React.FC = () => {
         // SELECTING: Only update local state - NO LOCKING until checkout
         console.log('Selecting seat:', seat.label);
         
+        // Check if seat is already selected (prevent duplicates)
+        // Check both selectedSeats and current seats state to handle race conditions
+        const alreadySelected = selectedSeats.some(s => s.id === seat.id) || 
+                               seats.find(s => s.id === seat.id)?.isSelected;
+        if (alreadySelected) {
+          console.log('Seat already selected, skipping');
+          return;
+        }
+        
         // Immediate optimistic UI update (local selection only)
         const updatedSeats = seats.map(p =>
           p.id === seat.id 
@@ -740,7 +749,8 @@ const SeatSelection: React.FC = () => {
         );
         setSeats(updatedSeats);
         
-        const nextSelected = [...selectedSeats, seat];
+        // Use updated seats array to compute nextSelected to avoid duplicates
+        const nextSelected = [...selectedSeats, { ...seat, isSelected: true }];
         console.log('Next selected seats:', nextSelected.map(s => s.label));
         
         // Store selection in context (without locking)
