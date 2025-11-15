@@ -52,10 +52,11 @@ class OTPVerifyRequest(BaseModel):
 
 
 # -------------------- Register --------------------
-@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=Dict[str, str])
+@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=Dict)
 async def register(user: RegisterRequest, db: Session = Depends(get_db)):
     """
     Register a new user.
+    Requires email to be verified via OTP first.
     Accepts JSON with fields: name (or username), email, password, phone (optional), is_admin (optional).
     """
     try:
@@ -64,8 +65,33 @@ async def register(user: RegisterRequest, db: Session = Depends(get_db)):
             logger.warning("Attempt to register with existing email: %s", user.email)
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
+        # Check if email was verified via OTP (for registration)
+        email_verified = False
+        try:
+            from app.core.redis import get_redis
+            redis = await get_redis()
+            verified_key = f"reg_verified:{user.email}"
+            verified_status = await redis.get(verified_key)
+            if verified_status == "true":
+                email_verified = True
+                # Delete the verification key after use
+                await redis.delete(verified_key)
+                logger.info("Email verification confirmed from Redis for %s", user.email)
+        except Exception as e:
+            logger.warning("Redis not available for email verification check: %s", e)
+            # If Redis is not available, we can't verify - reject registration for security
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Email verification service unavailable. Please verify your email first."
+            )
+
+        if not email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email not verified. Please verify your email with OTP first."
+            )
+
         hashed_pwd = hash_password(user.password)
-        otp = generate_otp()
 
         new_user = models.User(
             name=user.name,
@@ -73,9 +99,9 @@ async def register(user: RegisterRequest, db: Session = Depends(get_db)):
             phone=user.phone or "",
             password=hashed_pwd,
             role=("admin" if user.is_admin else "user"),
-            otp_code=otp,
-            otp_expiry=datetime.datetime.utcnow() + datetime.timedelta(minutes=10),
-            is_verified=False,
+            otp_code=None,
+            otp_expiry=None,
+            is_verified=True,  # Email already verified via OTP
             is_admin=user.is_admin,
         )
 
@@ -92,16 +118,8 @@ async def register(user: RegisterRequest, db: Session = Depends(get_db)):
             logger.exception("DB error while creating user")
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
 
-        # Try to send OTP email (best-effort)
-        try:
-            result = await send_email(user.email, "Verify Email OTP", f"Your OTP is: {otp}")
-            if not result:
-                logger.warning("send_email returned falsy result for %s", user.email)
-                return {"detail": "OTP generated; but email could not be sent (check SMTP settings)"}
-            return {"detail": "OTP sent to your email for verification"}
-        except Exception:
-            logger.exception("Failed to send verification email for %s", user.email)
-            return {"detail": "OTP generated; email sending failed (see server logs)"}
+        logger.info("User registered successfully: %s", user.email)
+        return {"success": True, "message": "User registered successfully"}
     except HTTPException:
         raise
     except Exception as e:
@@ -179,70 +197,130 @@ def logout(
 @router.post("/send-otp", response_model=Dict[str, str])
 async def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == request.email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
+    
     otp = generate_otp()
-    user.otp_code = otp
-    user.otp_expiry = datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
-    db.commit()
+    otp_expiry = datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
+    
+    # If user exists, store OTP in database (for login/password reset)
+    if user:
+        user.otp_code = otp
+        user.otp_expiry = otp_expiry
+        db.commit()
+        email_subject = "Login OTP"
+    else:
+        # User doesn't exist - store OTP in Redis for registration
+        try:
+            from app.core.redis import get_redis
+            redis = await get_redis()
+            # Store OTP in Redis with 10 minute expiry
+            otp_key = f"reg_otp:{request.email}"
+            await redis.setex(otp_key, 600, otp)  # 600 seconds = 10 minutes
+            logger.info("Registration OTP stored in Redis for %s", request.email)
+        except Exception as e:
+            logger.warning("Redis not available for registration OTP storage: %s", e)
+            # Fallback: allow sending OTP even without Redis (less secure but functional)
+            # The OTP will need to be verified during registration
+        email_subject = "Registration OTP"
 
     try:
-        result = await send_email(user.email, "Login OTP", f"Your OTP is: {otp}")
+        result = await send_email(request.email, email_subject, f"Your OTP is: {otp}")
         if not result:
-            logger.warning("send_email returned falsy result for %s", user.email)
+            logger.warning("send_email returned falsy result for %s", request.email)
             return {"detail": "OTP generated; email could not be sent (check SMTP settings)"}
         return {"detail": "OTP sent to your email"}
     except Exception:
-        logger.exception("Unexpected error sending OTP to %s", user.email)
+        logger.exception("Unexpected error sending OTP to %s", request.email)
         return {"detail": "OTP generated; email sending failed (see server logs)"}
 
 
 # -------------------- Verify OTP --------------------
-@router.post("/verify-otp", response_model=TokenResponse)
+@router.post("/verify-otp", response_model=Dict)
 async def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == request.email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    
+    # If user exists, verify OTP from database (for login)
+    if user:
+        otp_code = getattr(user, "otp_code", None)
+        otp_expiry = getattr(user, "otp_expiry", None)
 
-    otp_code = getattr(user, "otp_code", None)
-    otp_expiry = getattr(user, "otp_expiry", None)
+        if otp_code is None or otp_code != request.otp:
+            raise HTTPException(status_code=400, detail="Invalid OTP")
 
-    if otp_code is None or otp_code != request.otp:
-        raise HTTPException(status_code=400, detail="Invalid OTP")
+        if otp_expiry is None or otp_expiry < datetime.datetime.utcnow():
+            raise HTTPException(status_code=400, detail="OTP expired or invalid")
 
-    if otp_expiry is None or otp_expiry < datetime.datetime.utcnow():
-        raise HTTPException(status_code=400, detail="OTP expired or invalid")
+        user.is_verified = True
+        user.otp_code = None
+        user.otp_expiry = None
+        db.commit()
 
-    user.is_verified = True
-    user.otp_code = None
-    user.otp_expiry = None
-    db.commit()
-
-    access_token = create_access_token({"sub": user.email, "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer"}
+        access_token = create_access_token({"sub": user.email, "role": user.role})
+        return {"access_token": access_token, "token_type": "bearer"}
+    
+    # User doesn't exist - verify OTP from Redis (for registration)
+    try:
+        from app.core.redis import get_redis
+        redis = await get_redis()
+        otp_key = f"reg_otp:{request.email}"
+        stored_otp = await redis.get(otp_key)
+        
+        if not stored_otp or stored_otp != request.otp:
+            raise HTTPException(status_code=400, detail="Invalid OTP")
+        
+        # OTP is valid - store verification status in Redis
+        verified_key = f"reg_verified:{request.email}"
+        await redis.setex(verified_key, 600, "true")  # 10 minutes expiry
+        # Delete the OTP key after successful verification
+        await redis.delete(otp_key)
+        
+        logger.info("Registration OTP verified for %s", request.email)
+        return {"success": True, "message": "OTP verified successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("Redis not available for registration OTP verification: %s", e)
+        # Fallback: if Redis is not available, we can't verify registration OTP
+        raise HTTPException(status_code=503, detail="OTP verification service temporarily unavailable")
 
 
 # -------------------- Resend OTP --------------------
 @router.post("/resend-otp", response_model=Dict[str, str])
 async def resend_otp(request: OTPRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == request.email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
+    
     otp = generate_otp()
-    user.otp_code = otp
-    user.otp_expiry = datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
-    db.commit()
+    otp_expiry = datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
+    
+    # If user exists, store OTP in database (for login/password reset)
+    if user:
+        user.otp_code = otp
+        user.otp_expiry = otp_expiry
+        db.commit()
+        email_subject = "Resend OTP"
+    else:
+        # User doesn't exist - store OTP in Redis for registration
+        try:
+            from app.core.redis import get_redis
+            redis = await get_redis()
+            # Store OTP in Redis with 10 minute expiry
+            otp_key = f"reg_otp:{request.email}"
+            await redis.setex(otp_key, 600, otp)  # 600 seconds = 10 minutes
+            # Clear any previous verification status
+            verified_key = f"reg_verified:{request.email}"
+            await redis.delete(verified_key)
+            logger.info("Registration OTP resent and stored in Redis for %s", request.email)
+        except Exception as e:
+            logger.warning("Redis not available for registration OTP resend: %s", e)
+        email_subject = "Registration OTP"
 
     try:
-        result = await send_email(user.email, "Resend OTP", f"Your new OTP is: {otp}")
+        result = await send_email(request.email, email_subject, f"Your new OTP is: {otp}")
         if not result:
-            logger.warning("send_email returned falsy result for %s", user.email)
+            logger.warning("send_email returned falsy result for %s", request.email)
             return {"detail": "OTP regenerated; email could not be sent (check SMTP settings)"}
         return {"detail": "New OTP sent"}
     except Exception:
-        logger.exception("Unexpected error resending OTP to %s", user.email)
+        logger.exception("Unexpected error resending OTP to %s", request.email)
         return {"detail": "OTP regenerated; email sending failed (see server logs)"}
 
 

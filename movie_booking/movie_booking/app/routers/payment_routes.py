@@ -25,6 +25,7 @@ from app.services.pdf_generator import generate_ticket_pdf, get_ticket_url
 from app.core.redis import get_redis
 from app.services.lock_validation import validate_locks_for_booking, release_seat_locks_simple
 from app.core.config import settings as config_settings
+from app.routers.public_routes import _generate_seat_layout_template
 
 # Optional razorpay import
 try:
@@ -755,13 +756,47 @@ async def verify_payment(
         start_time_value = getattr(showtime_obj, "start_time", None)
         showtime_str = start_time_value.strftime("%d %b %Y, %I:%M %p") if start_time_value else "TBD"
 
+        # Convert seat IDs to seat labels (e.g., "A1", "B5" instead of "17220008")
+        seat_labels_str = ", ".join(map(str, seat_ids_list))  # Fallback to IDs if conversion fails
+        if showtime_obj and theatre_obj:
+            try:
+                # Generate seat layout to get seat ID to label mapping
+                seat_map, premium_seats, regular_seats = _generate_seat_layout_template(
+                    theatre_obj.id, 
+                    order_record.showtime_id
+                )
+                
+                # Create reverse mapping: seat_id -> (row, num)
+                seat_id_to_label: Dict[int, str] = {}
+                for seat in premium_seats + regular_seats:
+                    seat_id = seat.get("seat_id")
+                    row = seat.get("row")
+                    num = seat.get("num")
+                    if seat_id and row is not None and num is not None:
+                        seat_id_to_label[seat_id] = f"{row}{num}"
+                
+                # Convert seat IDs to labels
+                seat_labels = []
+                for seat_id in seat_ids_list:
+                    label = seat_id_to_label.get(seat_id)
+                    if label:
+                        seat_labels.append(label)
+                    else:
+                        # Fallback to seat ID if label not found
+                        seat_labels.append(str(seat_id))
+                
+                seat_labels_str = ", ".join(seat_labels)
+                logger.info(f"Converted seat IDs {seat_ids_list} to labels: {seat_labels_str}")
+            except Exception as e:
+                logger.warning(f"Failed to convert seat IDs to labels: {e}. Using seat IDs instead.")
+
         try:
             pdf_path = generate_ticket_pdf(
                 booking_id=booking.id,
                 movie_title=(movie_obj.title if movie_obj else "Unknown Movie"),
                 theatre_name=(theatre_obj.name if theatre_obj else "Unknown Theatre"),
                 showtime=showtime_str,
-                seats=", ".join(map(str, seat_ids_list)),
+                seats=seat_labels_str,
                 amount=booking.amount,
                 user_email=order_record.user_email,
                 showtime_id=order_record.showtime_id,

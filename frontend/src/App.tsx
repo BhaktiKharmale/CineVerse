@@ -1,7 +1,7 @@
 import React from "react";
 import Router from "./router/Router";
-import AIChatWidget from "./components/chat/AIChatWidget";
 import ToastContainer from "./components/common/ToastContainer";
+import AssistantWidget from "./components/assistant/AssistantWidget";
 import { ShowtimeModalProvider } from "./context/ShowtimeModalContext";
 import { AdminAuthProvider } from "./context/AdminAuthContext";
 import { AuthProvider } from "./context/AuthProvider";
@@ -16,7 +16,7 @@ const App: React.FC = () => {
           <BookingProvider>
             <Router />
             <ToastContainer />
-            <AIChatWidget />
+            <AssistantWidget />
           </BookingProvider>
         </AdminAuthProvider>
       </AuthProvider>

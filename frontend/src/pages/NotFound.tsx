@@ -24,10 +24,10 @@ const NotFound: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate("/movies")}
+            onClick={() => navigate("/home")}
             className="rounded-full bg-gradient-to-r from-[#f6c800] to-[#ff9d1b] px-6 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-[#050509] transition hover:opacity-90"
           >
-            Go to Movies
+            Go to Home
           </button>
         </div>
       </div>

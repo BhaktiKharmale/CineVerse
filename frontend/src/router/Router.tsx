@@ -5,7 +5,6 @@ import Splash from "../pages/Splash";
 import Register from "../pages/Auth/Register";
 import Login from "../pages/Auth/Login";
 import Home from "../pages/Home";
-import MoviesPage from "../pages/Movies";
 import MovieDetails from "../pages/Movie/Details";
 import ShowtimesPage from "../pages/Showtimes";
 import SeatSelection from "../pages/Booking/SeatSelection";
@@ -47,7 +46,8 @@ const routes: RouteObject[] = [
         element: <Splash />,
       },
       { path: "home", element: <Home /> },
-      { path: "movies", element: <MoviesPage /> },
+      // Movies page removed - redirect to home
+      { path: "movies", element: <Navigate to="/home" replace /> },
       { path: "showtimes", element: <ShowtimesPage /> },
       { path: "register", element: <Register /> },
       { path: "login", element: <Login /> },
@@ -107,14 +107,15 @@ const routes: RouteObject[] = [
           { path: "settings", element: <AdminSettingsPage /> },
         ],
       },
-      { path: "seat-selection", element: <Navigate to="/movies" replace /> },
+      // All showtime-related routes redirect to seat booking
+      { path: "seat-selection", element: <Navigate to="/home" replace /> },
       { path: "seat-selection/:showtimeId", element: <Navigate to="/seats?showtimeId=:showtimeId" replace /> },
       { path: "showtime/:showtimeId", element: <Navigate to="/seats?showtimeId=:showtimeId" replace /> },
       { path: "showtimes/:showtimeId", element: <Navigate to="/seats?showtimeId=:showtimeId" replace /> },
       { path: "show/:showtimeId/seats", element: <Navigate to="/seats?showtimeId=:showtimeId" replace /> },
-      { path: "movie/:movieId/showtimes", element: <Navigate to="/movie/:movieId" replace /> },
+      { path: "movie/:movieId/showtimes", element: <Navigate to="/home" replace /> },
       { path: "booking/:bookingId", element: <Navigate to="/booking/:bookingId/success" replace /> },
-      { path: "booking", element: <Navigate to="/movies" replace /> },
+      { path: "booking", element: <Navigate to="/home" replace /> },
       { path: "*", element: <NotFound /> },
     ],
   },

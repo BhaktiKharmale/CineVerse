@@ -32,7 +32,7 @@ const CheckoutPage: React.FC = () => {
   useEffect(() => {
     if (!orderId) {
       toast.error("Missing order information. Please select seats again.");
-      navigate("/movies", { replace: true });
+      navigate("/home", { replace: true });
     }
   }, [orderId, navigate]);
 
@@ -251,7 +251,11 @@ const CheckoutPage: React.FC = () => {
   const handleCancel = async () => {
     await clearLock({ silent: true });
     reset();
-    navigate(`/movie/${showtimeId ?? locationState.showtimeId ?? ""}`, { replace: true });
+    if (showtimeId || locationState.showtimeId) {
+      navigate(`/seats?showtimeId=${showtimeId ?? locationState.showtimeId}`, { replace: true });
+    } else {
+      navigate("/home", { replace: true });
+    }
   };
 
   if (loading || !order) {

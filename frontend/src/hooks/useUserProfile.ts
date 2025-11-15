@@ -6,11 +6,14 @@ export type User = {
 id: number;
 name: string;
 email: string;
-phone?: string;
-gender?: string;
-marital_status?: string;
-dob?: string; // ISO date string
+phone?: string | null;
+gender?: string | null;
+marital_status?: string | null;
+dob?: string | null; // ISO date string
 avatar_url?: string | null;
+role?: string;
+is_verified?: boolean;
+created_at?: string | null;
 };
 
 
@@ -24,7 +27,7 @@ const fetchUser = useCallback(async () => {
 setLoading(true);
 setError(null);
 try {
-const res = await api.get<User>("/users/me");
+const res = await api.get<User>("/user/me");
 setUser(res.data);
 } catch (err: any) {
 setError(err?.response?.data?.message || err.message || "Failed to fetch user");
@@ -42,7 +45,7 @@ fetchUser();
 const updateUser = async (payload: Partial<User>) => {
 setLoading(true);
 try {
-const res = await api.put<User>("/users/me", payload);
+const res = await api.put<User>("/user/me", payload);
 setUser(res.data);
 return res.data;
 } catch (err: any) {

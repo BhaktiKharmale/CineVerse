@@ -1,5 +1,5 @@
 // src/pages/Showtimes/index.tsx
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "../../components/layout/Navbar";
 import Footer from "../../components/layout/Footer";
@@ -87,113 +87,113 @@ export default function ShowtimesPage() {
   }, []);
 
   // Fetch showtimes when date/movie changes
-  useEffect(() => {
-    const fetchShowtimes = async () => {
-      setLoading(true);
-      setError(null);
+  const fetchShowtimes = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const cinemaMap = new Map<number, CinemaShowtime>();
       
-      try {
-        const cinemaMap = new Map<number, CinemaShowtime>();
-        
-        // Determine which movies to fetch
-        const moviesToFetch = selectedMovieId
-          ? movies.filter((m) => m.id.toString() === selectedMovieId)
-          : movies;
-        
-        if (moviesToFetch.length === 0) {
-          setCinemaShowtimes([]);
-          setLoading(false);
-          return;
-        }
-        
-        // Fetch showtimes for each movie
-        await Promise.all(
-          moviesToFetch.map(async (movie) => {
-            try {
-              const params: any = { date: selectedDate };
-              if (selectedCity) params.city = selectedCity;
+      // Determine which movies to fetch
+      const moviesToFetch = selectedMovieId
+        ? movies.filter((m) => m.id.toString() === selectedMovieId)
+        : movies;
+      
+      if (moviesToFetch.length === 0) {
+        setCinemaShowtimes([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch showtimes for each movie
+      await Promise.all(
+        moviesToFetch.map(async (movie) => {
+          try {
+            const params: any = { date: selectedDate };
+            if (selectedCity) params.city = selectedCity;
+            
+            console.log(`🎬 Fetching showtimes for movie ${movie.id} (${movie.title})`);
+            
+            const response: ShowtimesResponse = await movieService.getShowtimesGrouped(
+              movie.id,
+              params
+            );
+            
+            if (!response || !response.theatres || !Array.isArray(response.theatres)) {
+              return;
+            }
+            
+            const filteredResponse = filterAvailableShowtimesGrouped(response);
+            
+            // Group by cinema
+            filteredResponse.theatres.forEach((theatre) => {
+              const cinemaId = theatre.theatre_id;
               
-              console.log(`🎬 Fetching showtimes for movie ${movie.id} (${movie.title})`);
-              
-              const response: ShowtimesResponse = await movieService.getShowtimesGrouped(
-                movie.id,
-                params
-              );
-              
-              if (!response || !response.theatres || !Array.isArray(response.theatres)) {
-                return;
+              if (!cinemaMap.has(cinemaId)) {
+                cinemaMap.set(cinemaId, {
+                  cinemaId,
+                  cinemaName: theatre.theatre_name,
+                  cinemaLocation: theatre.location,
+                  showtimes: [],
+                });
               }
               
-              const filteredResponse = filterAvailableShowtimesGrouped(response);
+              const cinema = cinemaMap.get(cinemaId)!;
               
-              // Group by cinema
-              filteredResponse.theatres.forEach((theatre) => {
-                const cinemaId = theatre.theatre_id;
-                
-                if (!cinemaMap.has(cinemaId)) {
-                  cinemaMap.set(cinemaId, {
-                    cinemaId,
-                    cinemaName: theatre.theatre_name,
-                    cinemaLocation: theatre.location,
-                    showtimes: [],
-                  });
-                }
-                
-                const cinema = cinemaMap.get(cinemaId)!;
-                
-                theatre.times.forEach((time) => {
-                  cinema.showtimes.push({
-                    showtimeId: time.showtime_id,
-                    movieId: movie.id,
-                    movieTitle: movie.title,
-                    startTime: time.start_time,
-                    language: time.language,
-                    format: time.format,
-                    price: time.price,
-                    availableSeats: time.available_seats,
-                    status: time.status,
-                  });
+              theatre.times.forEach((time) => {
+                cinema.showtimes.push({
+                  showtimeId: time.showtime_id,
+                  movieId: movie.id,
+                  movieTitle: movie.title,
+                  startTime: time.start_time,
+                  language: time.language,
+                  format: time.format,
+                  price: time.price,
+                  availableSeats: time.available_seats,
+                  status: time.status,
                 });
               });
-            } catch (err) {
-              console.error(`[Showtimes] Failed to fetch for movie ${movie.id}`, err);
-            }
-          })
-        );
-        
-        // Convert to array and sort showtimes within each cinema
-        const cinemasArray = Array.from(cinemaMap.values());
-        cinemasArray.forEach((cinema) => {
-          cinema.showtimes.sort((a, b) => {
-            return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-          });
+            });
+          } catch (err) {
+            console.error(`[Showtimes] Failed to fetch for movie ${movie.id}`, err);
+          }
+        })
+      );
+      
+      // Convert to array and sort showtimes within each cinema
+      const cinemasArray = Array.from(cinemaMap.values());
+      cinemasArray.forEach((cinema) => {
+        cinema.showtimes.sort((a, b) => {
+          return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
         });
-        
-        setCinemaShowtimes(cinemasArray);
-      } catch (err: any) {
-        console.error("[Showtimes] Failed to fetch showtimes", err);
-        
-        let errorMessage = "Unable to load showtimes. Please try again.";
-        if (err?.response?.status === 404) {
-          errorMessage = "No showtimes found for the selected date.";
-        } else if (err?.response?.status === 500) {
-          errorMessage = "Server error. Please try again later.";
-        } else if (err?.message?.includes('CORS')) {
-          errorMessage = "Connection error. Please check your network.";
-        } else if (err?.message) {
-          errorMessage = `Error: ${err.message}`;
-        }
-        
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
+      });
+      
+      setCinemaShowtimes(cinemasArray);
+    } catch (err: any) {
+      console.error("[Showtimes] Failed to fetch showtimes", err);
+      
+      let errorMessage = "Unable to load showtimes. Please try again.";
+      if (err?.response?.status === 404) {
+        errorMessage = "No showtimes found for the selected date.";
+      } else if (err?.response?.status === 500) {
+        errorMessage = "Server error. Please try again later.";
+      } else if (err?.message?.includes('CORS')) {
+        errorMessage = "Connection error. Please check your network.";
+      } else if (err?.message) {
+        errorMessage = `Error: ${err.message}`;
       }
-    };
+      
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate, selectedMovieId, selectedCity, movies]);
     
+  useEffect(() => {
     if (movies.length > 0) {
       fetchShowtimes();
     }
-  }, [selectedDate, selectedMovieId, selectedCity, movies]);
+  }, [fetchShowtimes, movies.length]);
 
   // Apply search filter
   const filteredCinemas = useMemo(() => {
@@ -213,7 +213,7 @@ export default function ShowtimesPage() {
   };
 
   const handleShowtimeClick = (showtimeId: number, movieId: number) => {
-    navigate(`/show/${showtimeId}/seats`, { state: { movieId } });
+    navigate(`/seats?showtimeId=${showtimeId}`, { state: { movieId } });
   };
 
   const handleResetDate = () => {
@@ -294,7 +294,7 @@ export default function ShowtimesPage() {
               <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-md">
                 <p className="text-red-700 mb-4 font-medium">{error}</p>
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={() => fetchShowtimes()}
                   className="px-6 py-3 bg-[#f6c800] text-black rounded-lg font-semibold hover:bg-[#e5b700] transition shadow-md"
                 >
                   Retry

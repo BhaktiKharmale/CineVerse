@@ -1,5 +1,3 @@
-import { aiChatService } from "./aiChatService";
-
 type Disconnectable = {
   disconnect: () => void;
 };
@@ -22,16 +20,6 @@ export const socketManager = {
       }
     });
     registeredSockets.clear();
-
-    // Ensure AI chat namespace is disconnected even if not registered explicitly.
-    try {
-      aiChatService.disconnect();
-    } catch (error) {
-      console.error("[socketManager] Failed to disconnect aiChatService", error);
-    }
   },
 };
-
-// Pre-register known singleton sockets.
-socketManager.register(aiChatService);
 

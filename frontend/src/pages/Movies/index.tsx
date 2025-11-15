@@ -24,16 +24,16 @@ const MovieCard: React.FC<{ movie: MovieSummary; onBook: (movie: Movie) => void 
   
   // Convert MovieSummary to Movie type for modal
   const movieForModal: Movie = {
-    id: movie.id,
+    id: typeof movie.id === 'number' ? movie.id : Number(movie.id),
     title: movie.title,
-    poster_url: movie.poster_url,
-    poster: movie.poster_url,
-    genre: movie.genre,
-    language: movie.language,
-    duration: movie.duration,
-    rating: movie.rating,
-    synopsis: movie.synopsis,
-    description: movie.description,
+    poster_url: movie.poster_url ?? undefined,
+    poster: movie.poster_url ?? undefined,
+    genre: movie.genre ?? undefined,
+    language: movie.language ?? undefined,
+    duration: movie.duration ?? undefined,
+    rating: movie.rating ?? undefined,
+    synopsis: movie.synopsis ?? undefined,
+    description: movie.description ?? undefined,
   };
   
   return (
@@ -72,21 +72,21 @@ const MoviesPage: React.FC = () => {
 
   const selectedDate = searchParams.get("date") ?? makeDateOptions(1)[0]?.value;
 
-  useEffect(() => {
-    const fetchMovies = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await movieService.getMovies();
-        setMovies(data);
-      } catch (err) {
-        console.error("[Movies] Failed to load movies", err);
-        setError("Failed to load movies. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchMovies = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await movieService.getMovies();
+      setMovies(data);
+    } catch (err) {
+      console.error("[Movies] Failed to load movies", err);
+      setError("Failed to load movies. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchMovies();
   }, []);
 
@@ -116,7 +116,7 @@ const MoviesPage: React.FC = () => {
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-[#050509] px-4 text-center text-white">
         <h2 className="text-2xl font-semibold">{error}</h2>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => fetchMovies()}
           className="rounded-full border border-[#f6c800]/70 px-6 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-[#f6c800] transition hover:bg-[#1a1a1f]"
         >
           Retry

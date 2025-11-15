@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import "../../styles/SeatSelection.css";
 import showtimeService, { 
@@ -202,7 +202,7 @@ const zoneLabels: Record<string, string> = {
 
 /* ---------------------- Component ---------------------- */
 const SeatSelection: React.FC = () => {
-  const { showtimeId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const {
@@ -232,7 +232,9 @@ const SeatSelection: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<string>('DISCONNECTED');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
-  const activeShowtimeId = showtimeId ?? (ctxShowtimeId ? String(ctxShowtimeId) : null);
+  // Get showtimeId from URL search params first, then fallback to context
+  const showtimeIdFromUrl = searchParams.get("showtimeId");
+  const activeShowtimeId = showtimeIdFromUrl ?? (ctxShowtimeId ? String(ctxShowtimeId) : null);
   const currentOwner = getOwnerToken();
 
   // Single source of truth for selected seats
@@ -246,7 +248,7 @@ const SeatSelection: React.FC = () => {
   /* ---------------------- Load meta + seats (ONLY on showtime change) ---------------------- */
   useEffect(() => {
     if (!activeShowtimeId) {
-      navigate("/movies", { replace: true });
+      navigate("/home", { replace: true });
       return;
     }
     
@@ -304,7 +306,20 @@ const SeatSelection: React.FC = () => {
             // Sync with context state
             const isSelected = lockedSeatIds.has(String(idNum));
 
-            console.log(`Seat ${label}: id=${idNum}, selected=${isSelected}`);
+            // Extract lockedBy information
+            const seatLockedBy = r.lockedBy ?? r.locked_by;
+            
+            // Determine status: if locked by another user, ensure status is "locked"
+            let seatStatus = String(r.status ?? r.state ?? "available");
+            if (seatLockedBy && seatLockedBy !== currentOwner) {
+              // Seat is locked by another user - ensure status reflects this
+              seatStatus = "locked";
+            } else if (seatLockedBy === currentOwner && seatStatus === "available") {
+              // Seat is locked by us but status wasn't set - keep as available for our selection
+              seatStatus = "available";
+            }
+
+            console.log(`Seat ${label}: id=${idNum}, selected=${isSelected}, status=${seatStatus}, lockedBy=${seatLockedBy}`);
 
             return {
               ...(r as SeatInfo),
@@ -312,11 +327,11 @@ const SeatSelection: React.FC = () => {
               number: num,
               row: rowStr,
               zone: mappedZone,
-              status: String(r.status ?? r.state ?? "available"),
+              status: seatStatus,
               price,
               label,
               isSelected: isSelected,
-              lockedBy: r.lockedBy ?? r.locked_by,
+              lockedBy: seatLockedBy,
               raw: r,
             } as SeatWithSelection;
           });
@@ -507,9 +522,12 @@ const SeatSelection: React.FC = () => {
             if (updatedSeatId === currentSeatId || 
                 String(updatedSeat.id ?? updatedSeat.seat_id) === String(currentSeat.id) ||
                 String(updatedSeat.id ?? updatedSeat.seat_id) === String(currentSeat.seatId)) {
-              const isLockedByOthers = updatedSeat.status === 'locked' && 
-                                     (updatedSeat.locked_by ?? updatedSeat.lockedBy) && 
-                                     (updatedSeat.locked_by ?? updatedSeat.lockedBy) !== currentOwner;
+              const updatedLockedBy = updatedSeat.locked_by ?? updatedSeat.lockedBy;
+              // Check if seat is locked by another user (either by status or lockedBy field)
+              const isLockedByOthers = updatedLockedBy && 
+                                     updatedLockedBy !== currentOwner &&
+                                     (updatedSeat.status === 'locked' || updatedLockedBy);
+              
               const wasSelectedByUs = selectedSeatIds.has(String(currentSeat.id));
               const isInContext = contextLockedIds.has(String(currentSeat.id));
               
@@ -522,10 +540,16 @@ const SeatSelection: React.FC = () => {
               // Check both current selection and context
               const shouldBeSelected = !isLockedByOthers && (wasSelectedByUs || isInContext);
               
+              // Ensure status is "locked" if locked by another user
+              let finalStatus = updatedSeat.status;
+              if (isLockedByOthers && finalStatus !== 'locked' && finalStatus !== 'booked') {
+                finalStatus = 'locked';
+              }
+              
               return {
                 ...currentSeat,
-                status: updatedSeat.status,
-                lockedBy: updatedSeat.locked_by ?? updatedSeat.lockedBy,
+                status: finalStatus,
+                lockedBy: updatedLockedBy,
                 isSelected: shouldBeSelected
               };
             }
@@ -570,13 +594,14 @@ const SeatSelection: React.FC = () => {
         const updated = prev.map(s => {
           const currentSeatId = getIdNumber(s);
           
-          // Match by ID (handle different ID formats)
-          if (currentSeatId === lockedSeatId || 
-              String(s.id) === String(lockedSeatId) ||
-              String(s.seatId) === String(lockedSeatId) ||
-              String(seatData.seat_id) === String(s.id) ||
-              String(seatData.seat_id) === String(s.seatId)) {
+            // Match by ID (handle different ID formats)
+            if (currentSeatId === lockedSeatId || 
+                String(s.id) === String(lockedSeatId) ||
+                String(s.seatId) === String(lockedSeatId) ||
+                String(seatData.seat_id) === String(s.id) ||
+                String(seatData.seat_id) === String(s.seatId)) {
             found = true;
+            // Check if seat is locked by another user
             const isLockedByOthers = lockedBy && lockedBy !== currentOwner;
             const wasSelectedByUs = selectedSeatIds.has(String(s.id));
             const isInContext = contextLockedIds.has(String(s.id));
@@ -745,9 +770,13 @@ const SeatSelection: React.FC = () => {
     }
     
     // Enhanced status check with owner awareness
-    const isLockedByOthers = seat.status === "locked" && seat.lockedBy !== currentOwner;
+    // Check if seat is locked by another user (either by status or lockedBy field)
+    const isLockedByOthers = (seat.status === "locked" || seat.lockedBy) && 
+                             seat.lockedBy && 
+                             seat.lockedBy !== currentOwner;
+    
     if (seat.status === "booked" || seat.status === "blocked" || isLockedByOthers) {
-      console.log('Seat not available:', { status: seat.status, lockedByOthers: isLockedByOthers });
+      console.log('Seat not available:', { status: seat.status, lockedBy: seat.lockedBy, lockedByOthers: isLockedByOthers, currentOwner });
       if (isLockedByOthers) {
         toast.error("This seat was just taken by another user.");
       } else {
@@ -1338,7 +1367,7 @@ const SeatSelection: React.FC = () => {
               <LegendBox color="var(--locked-color)" label="Locked" />
             </div>
           </div>
-
+         
           <div style={{ background: "var(--panel)", borderRadius: 12, padding: 20 }}>
             {zoneOrder.map((zone) => {
               const entry = zonesMap.get(zone);
@@ -1357,7 +1386,7 @@ const SeatSelection: React.FC = () => {
                           type="button"
                           key={s.id}
                           onClick={(e) => toggleSeat(s, e)}
-                          disabled={s.status === "booked" || (s.status === "locked" && s.lockedBy !== currentOwner)}
+                          disabled={s.status === "booked" || s.status === "blocked" || !!(s.lockedBy && s.lockedBy !== currentOwner)}
                           className={`seat ${s.isSelected ? "selected" : ""} ${s.status}`}
                           style={{
                             width: 60,
@@ -1372,7 +1401,7 @@ const SeatSelection: React.FC = () => {
                                       s.status === "booked" ? "var(--seat-occupied)" : 
                                       s.status === "locked" ? "var(--locked-color)" : "transparent",
                             color: s.isSelected ? "#000" : "var(--text)",
-                            cursor: s.status === "booked" || (s.status === "locked" && s.lockedBy !== currentOwner) ? "not-allowed" : "pointer",
+                            cursor: s.status === "booked" || s.status === "blocked" || (s.lockedBy && s.lockedBy !== currentOwner) ? "not-allowed" : "pointer",
                             fontWeight: 600,
                             display: "flex",
                             alignItems: "center",
@@ -1392,7 +1421,7 @@ const SeatSelection: React.FC = () => {
                             type="button"
                             key={s.id}
                             onClick={(e) => toggleSeat(s, e)}
-                            disabled={s.status === "booked" || (s.status === "locked" && s.lockedBy !== currentOwner)}
+                            disabled={s.status === "booked" || s.status === "blocked" || !!(s.lockedBy && s.lockedBy !== currentOwner)}
                             className={`seat ${s.isSelected ? "selected" : ""} ${s.status}`}
                             style={{
                               width: 36,
@@ -1407,7 +1436,7 @@ const SeatSelection: React.FC = () => {
                                         s.status === "booked" ? "var(--seat-occupied)" : 
                                         s.status === "locked" ? "var(--locked-color)" : "transparent",
                               color: s.isSelected ? "#000" : "var(--text)",
-                              cursor: s.status === "booked" || (s.status === "locked" && s.lockedBy !== currentOwner) ? "not-allowed" : "pointer",
+                              cursor: s.status === "booked" || s.status === "blocked" || (s.lockedBy && s.lockedBy !== currentOwner) ? "not-allowed" : "pointer",
                               fontWeight: 600,
                               display: "flex",
                               alignItems: "center",

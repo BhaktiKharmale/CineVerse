@@ -24,15 +24,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠ Redis connection failed (seat locking may be disabled): {e}")
 
-    # AI agent info (non-fatal)
+    # Assistant will be initialized when requested
     try:
-        from app.ai.config import AI_ENABLED, LLM_MODEL
-        if AI_ENABLED:
-            logger.info(f"✓ AI Agent enabled (Model: {LLM_MODEL})")
+        from app.assistant.config import ASSISTANT_ENABLED, LLM_MODEL
+        if ASSISTANT_ENABLED:
+            logger.info(f"✓ Assistant enabled (Model: {LLM_MODEL})")
         else:
-            logger.warning("⚠ AI Agent disabled (OPENAI_API_KEY not set)")
+            logger.info("ℹ️ Assistant disabled (OPENAI_API_KEY not set)")
     except Exception as e:
-        logger.warning(f"⚠ AI Agent initialization warning: {e}")
+        logger.warning(f"⚠ Assistant initialization warning: {e}")
 
     # Yield control to the application
     # If cancelled (e.g., Ctrl+C), the exception will propagate naturally
@@ -149,13 +149,13 @@ try:
 except Exception as e:
     logger.error(f"✗ Payment routes failed to register: {e}")
 
-# AI routes (no prefix change — they might be mounted at /ai in the router itself)
+# Assistant routes
 try:
-    from app.ai.router import router as ai_router
-    fastapi_app.include_router(ai_router)
-    logger.info("✓ AI Agent routes registered at /ai (or as declared by router)")
+    from app.assistant.router import router as assistant_router
+    fastapi_app.include_router(assistant_router)
+    logger.info("✓ Assistant routes registered at /api/assistant")
 except Exception as e:
-    logger.error(f"✗ AI Agent routes failed to register: {e}")
+    logger.warning(f"⚠ Assistant routes failed to register: {e}")
 
 # Root and CORS-test endpoints
 @fastapi_app.get("/")
@@ -170,15 +170,5 @@ def cors_test():
         "timestamp": __import__("datetime").datetime.now().isoformat(),
     }
 
-# Socket.IO wrapping (last)
-try:
-    from app.ai.events import wrap_app_with_socketio, SOCKETIO_AVAILABLE
-    if SOCKETIO_AVAILABLE:
-        app = wrap_app_with_socketio(fastapi_app)
-        logger.info("✅ FastAPI app wrapped with Socket.IO")
-    else:
-        app = fastapi_app
-        logger.info("ℹ️ Socket.IO not available, running plain FastAPI")
-except Exception as e:
-    logger.warning(f"⚠ Failed to wrap app with Socket.IO: {e}")
-    app = fastapi_app
+# App is ready (no Socket.IO wrapping needed for new assistant)
+app = fastapi_app

@@ -93,24 +93,23 @@ const MovieDetails: React.FC = () => {
   /* -------------------------------------------------------- */
   /*                     LOAD MOVIE DETAILS                   */
   /* -------------------------------------------------------- */
-  useEffect(() => {
+  const loadMovie = async () => {
     if (!movieId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await movieService.getMovie(movieId);
+      setMovieData(data);
+      setContextMovie((data as any).id ?? data.id);
+    } catch (err) {
+      console.error("[MovieDetails] Failed to load movie", err);
+      setError("Unable to load movie details.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const loadMovie = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await movieService.getMovie(movieId);
-        setMovieData(data);
-        setContextMovie((data as any).id ?? data.id);
-      } catch (err) {
-        console.error("[MovieDetails] Failed to load movie", err);
-        setError("Unable to load movie details.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  useEffect(() => {
     loadMovie();
   }, [movieId, setContextMovie]);
 
@@ -163,7 +162,7 @@ const MovieDetails: React.FC = () => {
         minute: "2-digit",
       })}`
     );
-    navigate(`/show/${showtimeId}/seats`, { state: { movieId } });
+    navigate(`/seats?showtimeId=${showtimeId}`, { state: { movieId } });
   };
 
   /* -------------------------------------------------------- */
@@ -183,13 +182,13 @@ const MovieDetails: React.FC = () => {
         <h2 className="text-2xl font-semibold uppercase tracking-wide">{error ?? "Movie not found"}</h2>
         <div className="flex gap-3">
           <button
-            onClick={() => navigate("/movies")}
+            onClick={() => navigate("/home")}
             className="rounded-full border border-[#f6c800]/70 px-6 py-2 text-sm font-semibold uppercase tracking-wide text-[#f6c800] transition hover:bg-[#1a1a1f]"
           >
-            Back to Movies
+            Back to Home
           </button>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => loadMovie()}
             className="rounded-full bg-[#f6c800] px-6 py-2 text-sm font-semibold uppercase tracking-wide text-[#050509] transition hover:opacity-90"
           >
             Retry

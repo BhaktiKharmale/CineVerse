@@ -109,7 +109,7 @@ const BookTicketsSection: React.FC<BookTicketsSectionProps> = ({ movie, onSelect
 
       onBeforeNavigate?.();
 
-      navigate(`/show/${showtimeId}/seats`, {
+      navigate(`/seats?showtimeId=${showtimeId}`, {
         state: decoratedContext,
       });
     } catch (err) {

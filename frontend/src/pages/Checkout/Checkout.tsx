@@ -27,7 +27,7 @@ const CheckoutPage: React.FC = () => {
 
         if (!order) {
           toast.error("Order details missing. Please try again.");
-          navigate("/movies");
+          navigate("/home");
           return;
         }
 

@@ -310,7 +310,7 @@ const ShowtimesSection: React.FC<ShowtimesSectionProps> = ({ cachedMovies }) => 
         return;
       }
       saveShowtimeContext(context);
-      navigate(`/show/${showtimeId}/seats`, { state: context });
+      navigate(`/seats?showtimeId=${showtimeId}`, { state: context });
     } catch (error) {
       console.error("[ShowtimesSection] Failed to navigate to seats", error);
       toast.error("Unable to open seats for this showtime.");
