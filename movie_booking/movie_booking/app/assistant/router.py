@@ -10,7 +10,7 @@ from app.assistant.service import process_message
 import logging
 import uuid
 from collections import defaultdict
-from time import time
+import time
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ def _get_lock_dict_lock() -> asyncio.Lock:
 
 def _cleanup_dedupe_store():
     """Remove expired entries from dedupe store"""
-    current_time = time()
+    current_time = time.time()
     expired_keys = [
         key for key, entry in _dedupe_store.items()
         if current_time - entry.get("timestamp", 0) > DEDUPE_TTL
@@ -97,7 +97,7 @@ def _set_dedupe_status(client_message_id: str, status: str, result: Optional[Dic
         "status": status,
         "result": result,
         "processing_id": processing_id,
-        "timestamp": time()
+        "timestamp": time.time()
     }
     # Limit store size
     if len(_dedupe_store) > 1000:
@@ -117,7 +117,7 @@ def check_rate_limit(session_id: str) -> tuple[bool, Optional[float]]:
     Returns:
         Tuple of (allowed, retry_after_seconds)
     """
-    now = time()
+    now = time.time()
     requests = _rate_limit_store[session_id]
     
     # Remove old requests (>1 minute ago)

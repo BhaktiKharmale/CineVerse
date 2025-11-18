@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: cineverse-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Ganesh@1}
+      POSTGRES_DB: ${DB_NAME:-CineVerse}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - cineverse-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: cineverse-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cineverse-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: cineverse-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - cineverse-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: movie_booking/Dockerfile
+    container_name: cineverse-backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: redis://redis:6379/0
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      PAYMENTS_WEBHOOK_SECRET: ${PAYMENTS_WEBHOOK_SECRET:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://51.20.76.216:8001}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://51.20.76.216:3001}
+    ports:
+      - "${BACKEND_PORT:-8001}:8001"
+    volumes:
+      - ./movie_booking/movie_booking/media:/app/movie_booking/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cineverse-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-http://51.20.76.216:8001}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://51.20.76.216:8001}
+        VITE_AGENT_ENABLED: ${VITE_AGENT_ENABLED:-true}
+    container_name: cineverse-frontend
+    ports:
+      - "${FRONTEND_PORT:-3001}:80"
+    depends_on:
+      - backend
+    networks:
+      - cineverse-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  pgadmin-data:
+    driver: local
+
+networks:
+  cineverse-network:
+    driver: bridge

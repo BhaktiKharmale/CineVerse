@@ -9,7 +9,7 @@ if not DATABASE_URL:
     DB_PASSWORD = os.getenv('DB_PASSWORD', 'Ganesh@1')
     DB_HOST = os.getenv('DB_HOST', 'localhost')
     DB_PORT = os.getenv('DB_PORT', '5432')
-    DB_NAME = os.getenv('DB_NAME', 'ticket_booking')
+    DB_NAME = os.getenv('DB_NAME', 'CineVerse')
     DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 engine = None

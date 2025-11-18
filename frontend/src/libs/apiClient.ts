@@ -10,10 +10,11 @@ import axios, {
     InternalAxiosRequestConfig,
   } from "axios";
   
-  const DEFAULT_BASE = "http://127.0.0.1:8001/api";
-  const rawBase = (import.meta as any).env?.VITE_API_BASE;
-  export const BASE_URL =
-    typeof rawBase === "string" && rawBase.length > 0 ? rawBase : DEFAULT_BASE;
+  // Normalize base so callers can pass either host or host + /api
+  const DEFAULT_HOST = "http://127.0.0.1:8001";
+  const rawBase = (import.meta as any).env?.VITE_API_BASE as string | undefined;
+  const hostBase = (typeof rawBase === "string" && rawBase.length > 0 ? rawBase : DEFAULT_HOST).replace(/\/$/, "");
+  export const BASE_URL = hostBase.endsWith("/api") ? hostBase : `${hostBase}/api`;
   
   const TOKEN_KEY = "token";
   
