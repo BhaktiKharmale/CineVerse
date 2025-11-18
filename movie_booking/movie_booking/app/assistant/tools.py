@@ -336,7 +336,8 @@ def get_booking(booking_id: int) -> Dict[str, Any]:
                     "total_amount": booking.total_amount,
                     "user_email": booking.user_email,
                     "payment_ref": booking.payment_ref,
-                    "created_at": booking.created_at.isoformat() if booking.created_at else None,
+                    "created_at": booking.created_at.isoformat() 
+                    if booking.created_at else None,
                     "movie": {
                         "id": movie.id,
                         "title": movie.title
